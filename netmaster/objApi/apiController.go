@@ -414,6 +414,21 @@ func (ac *APIController) NetworkCreate(network *contivModel.Network) error {
 		return err
 	}
 
+	// Define DNS endpoint group parameters
+	dnsEndpointGroup := contivModel.EndpointGroup{
+		Key:         network.TenantName + ":" + network.NetworkName + ":dns",
+		TenantName:  network.TenantName,
+		NetworkName: network.NetworkName,
+		GroupName:   "dns",
+	}
+
+	// Create endpoint group for the DNS service
+	err = contivModel.CreateEndpointGroup(&dnsEndpointGroup)
+	if err != nil {
+		log.Errorf("Error creating endpoint group for DNS: %+v, Err: %v", dnsEndpointGroup, err)
+		return err
+	}
+
 	return nil
 }
 
@@ -433,11 +448,26 @@ func (ac *APIController) NetworkDelete(network *contivModel.Network) error {
 		return core.Errorf("Tenant not found")
 	}
 
+	// Find DNS endpoint group
+	dnsEpgName := network.TenantName + ":" + network.NetworkName + ":dns"
+	dnsEndpointGroup := contivModel.FindEndpointGroup(dnsEpgName)
+	if dnsEndpointGroup == nil {
+		log.Errorf("Error: could not find endpoint group: %s", dnsEpgName)
+		return core.Errorf("could not find endpointGroup")
+	}
+
+	// Delete endpoint group for the DNS service
+	err := contivModel.DeleteEndpointGroup(dnsEndpointGroup.Key)
+	if err != nil {
+		log.Errorf("Error deleting endpoint group for DNS: %+v, Err: %v", dnsEndpointGroup, err)
+		return err
+	}
+
 	// Remove link
 	modeldb.RemoveLinkSet(&tenant.LinkSets.Networks, network)
 
 	// Save the tenant too since we removed the links
-	err := tenant.Write()
+	err = tenant.Write()
 	if err != nil {
 		return err
 	}

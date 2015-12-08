@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"net"
 	"strings"
+	"time"
 
 	"github.com/contiv/netplugin/core"
 	"github.com/contiv/netplugin/gstate"
@@ -327,12 +328,15 @@ func CreateNetwork(network intent.ConfigNetwork, stateDriver core.StateDriver, t
 		return err
 	}
 
-	// Attach service container endpoint to the network
-	err = attachServiceContainer(tenantName, networkID, stateDriver)
-	if err != nil {
-		log.Errorf("Error attaching service container to network: %s. Err: %v",
-			networkID, err)
-	}
+	go func() {
+		time.Sleep(5 * time.Second)
+		// Attach service container endpoint to the network
+		err := attachServiceContainer(tenantName, networkID, stateDriver)
+		if err != nil {
+			log.Errorf("Error attaching service container to network: %s. Err: %v",
+				networkID, err)
+		}
+	}()
 
 	return nil
 }
@@ -346,7 +350,7 @@ func attachServiceContainer(tenantName string, networkName string, stateDriver c
 	}
 
 	// Trim default tenant
-	dnetName := trimDefaultTenant(networkName)
+	dnetName := trimDefaultTenant("dns." + networkName)
 
 	err = docker.ConnectNetwork(dnetName, contName)
 	if err != nil {
