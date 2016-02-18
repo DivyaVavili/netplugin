@@ -100,11 +100,6 @@
 			"Rev": "5d2041e26a699eaca682e2ea41c8f891e1060444"
 		},
 		{
-			"ImportPath": "github.com/docker/libnetwork/discoverapi",
-			"Comment": "v0.5.6-45-g7586649",
-			"Rev": "7586649195296528de75fd26a61666b26f493b20"
-		},
-		{
 			"ImportPath": "github.com/docker/libnetwork/driverapi",
 			"Comment": "v0.5.6-45-g7586649",
 			"Rev": "7586649195296528de75fd26a61666b26f493b20"
