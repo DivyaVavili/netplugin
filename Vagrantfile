@@ -28,7 +28,6 @@ echo "export no_proxy=192.168.2.10,192.168.2.11,127.0.0.1,localhost,netmaster" >
 echo "export CLUSTER_NODE_IPS=192.168.2.10,192.168.2.11" >> /etc/profile.d/envvar.sh
 echo "export USE_RELEASE=$6" >> /etc/profile.d/envvar.sh
 
-
 source /etc/profile.d/envvar.sh
 
 mv /etc/resolv.conf /etc/resolv.conf.bak
@@ -44,6 +43,10 @@ systemctl enable docker-tcp.socket
 mkdir /etc/systemd/system/docker.service.d
 echo "[Service]" | sudo tee -a /etc/systemd/system/docker.service.d/http-proxy.conf
 echo "Environment=\\\"no_proxy=192.168.2.10,192.168.2.11,127.0.0.1,localhost,netmaster\\\" \\\"http_proxy=$http_proxy\\\" \\\"https_proxy=$https_proxy\\\"" | sudo tee -a /etc/systemd/system/docker.service.d/http-proxy.conf
+
+#sudo rm /usr/bin/docker
+#sudo cp /vagrant/docker-1.10.1 /usr/bin/docker
+#sudo sed -i -e 's/daemon/daemon -D/g' /lib/systemd/system/docker.service
 sudo systemctl daemon-reload
 sudo systemctl stop docker
 systemctl start docker-tcp.socket
