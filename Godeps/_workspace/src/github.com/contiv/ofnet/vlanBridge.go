@@ -283,6 +283,7 @@ func (vl *VlanBridge) initFgraph() error {
 	arpFlow, _ := vl.inputTable.NewFlow(ofctrl.FlowMatch{
 		Priority:  FLOW_MATCH_PRIORITY,
 		Ethertype: 0x0806,
+		ArpOper:   protocol.Type_Request,
 	})
 	arpFlow.Next(sw.SendToController())
 

@@ -34,6 +34,7 @@ type FlowMatch struct {
 	MacSaMask    *net.HardwareAddr // Mac source mask
 	Ethertype    uint16            // Ethertype
 	VlanId       uint16            // vlan id
+	ArpOper      uint16            // ARP Oper type
 	IpSa         *net.IP
 	IpSaMask     *net.IP
 	IpDa         *net.IP
@@ -138,6 +139,12 @@ func (self *Flow) xlateMatch() openflow13.Match {
 	if self.Match.VlanId != 0 {
 		vidField := openflow13.NewVlanIdField(self.Match.VlanId)
 		ofMatch.AddField(*vidField)
+	}
+
+	// Handle ARP Oper type
+	if self.Match.ArpOper != 0 {
+		arpOperField := openflow13.NewArpOperField(self.Match.ArpOper)
+		ofMatch.AddField(*arpOperField)
 	}
 
 	// Handle IP Dst
