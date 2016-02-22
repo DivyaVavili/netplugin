@@ -302,27 +302,20 @@ func (vl *VlanBridge) processArp(pkt protocol.Ethernet, inPort uint32) {
 	switch t := pkt.Data.(type) {
 	case *protocol.ARP:
 		log.Debugf("Processing ARP packet on port: %+v", *t, inPort)
-		var arpHdr protocol.ARP = *t
+		var arpIn protocol.ARP = *t
 
-		switch arpHdr.Operation {
+		switch arpIn.Operation {
 		case protocol.Type_Request:
 			// Lookup the Dest IP in the endpoint table
-			endpoint := vl.agent.getEndpointByIp(arpHdr.IPDst)
+			endpoint := vl.agent.getEndpointByIp(arpIn.IPDst)
 			if endpoint == nil {
 				// If we dont know the IP address, dont send an ARP response
-				log.Infof("Received ARP request for unknown IP: %v. Inject the packet back", arpHdr.IPDst)
-				arpPkt, _ := protocol.NewARP(protocol.Type_Request)
-				arpPkt.HWSrc = arpHdr.HWSrc
-				arpPkt.IPSrc = arpHdr.IPSrc
-				arpPkt.HWDst = arpHdr.HWDst
-				arpPkt.IPDst = arpHdr.IPDst
-
-				log.Debugf("Reinjecting ARP request: %+v", arpPkt)
+				log.Infof("Received ARP request for unknown IP: %v. Inject the packet back", arpIn.IPDst)
 				ethPkt := protocol.NewEthernet()
 				ethPkt.HWDst = pkt.HWDst
 				ethPkt.HWSrc = pkt.HWSrc
 				ethPkt.Ethertype = 0x0806
-				ethPkt.Data = arpPkt
+				ethPkt.Data = &arpIn
 
 				log.Debugf("Reinjecting ARP request Ethernet: %+v", ethPkt)
 
@@ -341,9 +334,9 @@ func (vl *VlanBridge) processArp(pkt protocol.Ethernet, inPort uint32) {
 			// Form an ARP response
 			arpPkt, _ := protocol.NewARP(protocol.Type_Reply)
 			arpPkt.HWSrc, _ = net.ParseMAC(endpoint.MacAddrStr)
-			arpPkt.IPSrc = arpHdr.IPDst
-			arpPkt.HWDst = arpHdr.HWSrc
-			arpPkt.IPDst = arpHdr.IPSrc
+			arpPkt.IPSrc = arpIn.IPDst
+			arpPkt.HWDst = arpIn.HWSrc
+			arpPkt.IPDst = arpIn.IPSrc
 
 			log.Debugf("Sending Proxy ARP response: %+v", arpPkt)
 
@@ -364,21 +357,15 @@ func (vl *VlanBridge) processArp(pkt protocol.Ethernet, inPort uint32) {
 			// Send it out
 			vl.ofSwitch.Send(pktOut)
 		case protocol.Type_Reply:
-			log.Infof("Received ARP response packet from port %d", inPort)
-			arpPkt, _ := protocol.NewARP(protocol.Type_Reply)
-			arpPkt.HWSrc = arpHdr.HWSrc
-			arpPkt.IPSrc = arpHdr.IPSrc
-			arpPkt.HWDst = arpHdr.HWDst
-			arpPkt.IPDst = arpHdr.IPDst
-			log.Infof("Sending ARP response: %+v", arpPkt)
+			log.Debugf("Received ARP response packet from port %d", inPort)
 
 			ethPkt := protocol.NewEthernet()
 			ethPkt.VLANID = pkt.VLANID
 			ethPkt.HWDst = pkt.HWDst
 			ethPkt.HWSrc = pkt.HWSrc
 			ethPkt.Ethertype = 0x0806
-			ethPkt.Data = arpPkt
-			log.Infof("Sending ARP response Ethernet: %+v", ethPkt)
+			ethPkt.Data = &arpIn
+			log.Debugf("Sending ARP response Ethernet: %+v", ethPkt)
 
 			// Packet out
 			pktOut := openflow13.NewPacketOut()
