@@ -42,7 +42,7 @@ type VlanBridge struct {
 	nmlTable   *ofctrl.Table // OVS normal lookup table
 
 	portVlanFlowDb map[uint32]*ofctrl.Flow // Database of flow entries
-
+	uplinkDb       map[uint32]uint32       // Database of uplink ports
 }
 
 // NewVlanBridge Create a new vlan instance
@@ -54,6 +54,7 @@ func NewVlanBridge(agent *OfnetAgent, rpcServ *rpc.Server) *VlanBridge {
 
 	// init maps
 	vlan.portVlanFlowDb = make(map[uint32]*ofctrl.Flow)
+	vlan.uplinkDb = make(map[uint32]uint32)
 
 	// Create policy agent
 	vlan.policyAgent = NewPolicyAgent(agent, rpcServ)
@@ -239,12 +240,14 @@ func (vl *VlanBridge) AddUplink(portNo uint32) error {
 
 	// save the flow entry
 	vl.portVlanFlowDb[portNo] = portVlanFlow
+	vl.uplinkDb[portNo] = portNo
 
 	return nil
 }
 
 // RemoveUplink remove an uplink to the switch
 func (vl *VlanBridge) RemoveUplink(portNo uint32) error {
+	delete(vl.uplinkDb, portNo)
 	return nil
 }
 
@@ -278,8 +281,7 @@ func (vl *VlanBridge) initFgraph() error {
 	})
 	vlanMissFlow.Next(sw.DropAction())
 
-	// Redirect ARP packets to controller
-	log.Infof("Creating New flow for ARP entries")
+	// Redirect ARP Request packets to controller
 	arpFlow, _ := vl.inputTable.NewFlow(ofctrl.FlowMatch{
 		Priority:  FLOW_MATCH_PRIORITY,
 		Ethertype: 0x0806,
@@ -298,66 +300,111 @@ func (vl *VlanBridge) initFgraph() error {
 }
 
 // Process incoming ARP packets
+/*
+ * ARP request
+ */
 func (vl *VlanBridge) processArp(pkt protocol.Ethernet, inPort uint32) {
 	switch t := pkt.Data.(type) {
 	case *protocol.ARP:
-		log.Debugf("Processing ARP packet on port: %+v", *t, inPort)
+		log.Infof("Divya: Processing ARP packet on port %d: %+v", inPort, *t)
 		var arpIn protocol.ARP = *t
 
 		switch arpIn.Operation {
 		case protocol.Type_Request:
-			// Lookup the Dest IP in the endpoint table
-			endpoint := vl.agent.getEndpointByIp(arpIn.IPDst)
-			if endpoint == nil {
+			// Lookup the Source and Dest IP in the endpoint table
+			srcEp := vl.agent.getEndpointByIp(arpIn.IPSrc)
+			dstEp := vl.agent.getEndpointByIp(arpIn.IPDst)
+
+			// No information about the src or dest EP.
+			// It's probably a VM to VM ARP. Ignore processing
+			if srcEp == nil && dstEp == nil {
+				log.Infof("No information on source/destination. Ignoring ARP request.")
+				return
+			}
+			// If we know the dstEp to be present locally, send the Proxy ARP response
+			if dstEp != nil {
+				// Container to Container communication. Send proxy ARP response.
+				// VM to Container communication
+				//   -> Send proxy ARP response only if Endpoint is local.
+				//   -> This is to avoid multiple ARP responses from multiple hosts' ofnet agent
+				if srcEp != nil ||
+					(srcEp == nil && dstEp.OriginatorIp.String() == vl.agent.localIp.String()) {
+					if srcEp != nil {
+						log.Infof("Divya: srcEp not nil: %+v", srcEp)
+					} else {
+						log.Infof("Divya: dstEp is local: %+v", dstEp)
+					}
+					// Form an ARP response
+					arpPkt, _ := protocol.NewARP(protocol.Type_Reply)
+					arpPkt.HWSrc, _ = net.ParseMAC(dstEp.MacAddrStr)
+					arpPkt.IPSrc = arpIn.IPDst
+					arpPkt.HWDst = arpIn.HWSrc
+					arpPkt.IPDst = arpIn.IPSrc
+
+					log.Infof("Divya: Sending Proxy ARP response: %+v", arpPkt)
+
+					// Build the ethernet packet
+					ethPkt := protocol.NewEthernet()
+					ethPkt.HWDst = arpPkt.HWDst
+					ethPkt.HWSrc = arpPkt.HWSrc
+					ethPkt.Ethertype = 0x0806
+					ethPkt.Data = arpPkt
+
+					log.Infof("Divya: Sending Proxy ARP response Ethernet: %+v", ethPkt)
+
+					// Construct Packet out
+					pktOut := openflow13.NewPacketOut()
+					pktOut.Data = ethPkt
+					pktOut.AddAction(openflow13.NewActionOutput(inPort))
+
+					// Send it out
+					vl.ofSwitch.Send(pktOut)
+
+					return
+				}
+			}
+			if srcEp != nil && dstEp == nil {
+				// ARP request from local container to unknown VM
+				// Reinject ARP to uplinks
+
+				// TODO: Maintain uplinksDb and add VLANID of container
+
 				// If we dont know the IP address, dont send an ARP response
-				log.Infof("Received ARP request for unknown IP: %v. Inject the packet back", arpIn.IPDst)
+				log.Infof("Divya: Received ARP request for unknown IP: %v. Inject the packet back", arpIn.IPDst)
 				ethPkt := protocol.NewEthernet()
+				ethPkt.VLANID.VID = srcEp.Vlan
 				ethPkt.HWDst = pkt.HWDst
 				ethPkt.HWSrc = pkt.HWSrc
 				ethPkt.Ethertype = 0x0806
 				ethPkt.Data = &arpIn
 
-				log.Debugf("Reinjecting ARP request Ethernet: %+v", ethPkt)
+				log.Infof("Divya: Reinjecting ARP request Ethernet to uplinks: %+v", ethPkt)
 
 				// Packet out
 				pktOut := openflow13.NewPacketOut()
 				pktOut.InPort = inPort
 				pktOut.Data = ethPkt
-				pktOut.AddAction(openflow13.NewActionOutput(openflow13.P_NORMAL))
-
+				for _, portNo := range vl.uplinkDb {
+                    log.Infof("Sending to uplink: %+v", portNo)
+					pktOut.AddAction(openflow13.NewActionOutput(portNo))
+				}
 				// Send it out
 				vl.ofSwitch.Send(pktOut)
 
-				return
 			}
 
-			// Form an ARP response
-			arpPkt, _ := protocol.NewARP(protocol.Type_Reply)
-			arpPkt.HWSrc, _ = net.ParseMAC(endpoint.MacAddrStr)
-			arpPkt.IPSrc = arpIn.IPDst
-			arpPkt.HWDst = arpIn.HWSrc
-			arpPkt.IPDst = arpIn.IPSrc
-
-			log.Debugf("Sending Proxy ARP response: %+v", arpPkt)
-
-			// build the ethernet packet
-			ethPkt := protocol.NewEthernet()
-			ethPkt.HWDst = arpPkt.HWDst
-			ethPkt.HWSrc = arpPkt.HWSrc
-			ethPkt.Ethertype = 0x0806
-			ethPkt.Data = arpPkt
-
-			log.Debugf("Sending Proxy ARP response Ethernet: %+v", ethPkt)
-
-			// Packet out
-			pktOut := openflow13.NewPacketOut()
-			pktOut.Data = ethPkt
-			pktOut.AddAction(openflow13.NewActionOutput(inPort))
-
-			// Send it out
-			vl.ofSwitch.Send(pktOut)
+			/*
+			   if srcEp != nil {
+			       // Received a ARP request from a local container
+			       if dstEp != nil {
+			           // ARP Request for a local container
+			       } else {
+			           // Send to uplinks
+			       }
+			   }
+			*/
 		case protocol.Type_Reply:
-			log.Debugf("Received ARP response packet from port %d", inPort)
+			log.Debugf("Divya: Received ARP response packet: %+v from port %d", arpIn, inPort)
 
 			ethPkt := protocol.NewEthernet()
 			ethPkt.VLANID = pkt.VLANID
@@ -365,7 +412,7 @@ func (vl *VlanBridge) processArp(pkt protocol.Ethernet, inPort uint32) {
 			ethPkt.HWSrc = pkt.HWSrc
 			ethPkt.Ethertype = 0x0806
 			ethPkt.Data = &arpIn
-			log.Debugf("Sending ARP response Ethernet: %+v", ethPkt)
+			log.Debugf("Divya: Sending ARP response Ethernet: %+v", ethPkt)
 
 			// Packet out
 			pktOut := openflow13.NewPacketOut()
@@ -373,7 +420,7 @@ func (vl *VlanBridge) processArp(pkt protocol.Ethernet, inPort uint32) {
 			pktOut.Data = ethPkt
 			pktOut.AddAction(openflow13.NewActionOutput(openflow13.P_NORMAL))
 
-			log.Debugf("Reinjecting ARP reply packet: %+v", pktOut)
+			log.Debugf("Divya: Reinjecting ARP reply packet: %+v", pktOut)
 			// Send it out
 			vl.ofSwitch.Send(pktOut)
 		}
