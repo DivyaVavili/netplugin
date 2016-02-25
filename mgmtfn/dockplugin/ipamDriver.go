@@ -158,6 +158,8 @@ func requestAddress(w http.ResponseWriter, r *http.Request) {
 	subnetLen := strings.Split(areq.PoolID, "/")[1]
 
 	var addr string
+	var dnsServers, searchList []string
+
 	if areq.Address != "" {
 		addr = areq.Address + "/" + subnetLen
 	} else {
@@ -170,11 +172,16 @@ func requestAddress(w http.ResponseWriter, r *http.Request) {
 		}
 
 		addr = allocResp.IPv4Address
+		dnsServers = append(dnsServers, allocResp.DNSIP)
+		searchList = allocResp.DNSSearchList
 	}
 
+	ipamData := map[string]string{"DNSServers": strings.Join(dnsServers, " "),
+		"DNSSearchDomains": strings.Join(searchList, " ")}
 	// build response
 	aresp := api.RequestAddressResponse{
 		Address: addr,
+		Data:    ipamData,
 	}
 
 	log.Infof("Sending RequestAddressResponse: %+v", aresp)

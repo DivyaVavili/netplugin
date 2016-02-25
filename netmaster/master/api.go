@@ -39,8 +39,10 @@ type AddressAllocRequest struct {
 
 // AddressAllocResponse is the response from netmaster
 type AddressAllocResponse struct {
-	NetworkID   string // Unique identifier for the network
-	IPv4Address string // Allocated address
+	NetworkID     string   // Unique identifier for the network
+	IPv4Address   string   // Allocated address
+	DNSIP         string   // DNS IP for the network
+	DNSSearchList []string // Search List handled by DNS
 }
 
 // AddressReleaseRequest is the release request from netplugin
@@ -83,6 +85,7 @@ var addrMutex sync.Mutex
 // AllocAddressHandler allocates addresses
 func AllocAddressHandler(w http.ResponseWriter, r *http.Request, vars map[string]string) (interface{}, error) {
 	var allocReq AddressAllocRequest
+	var searchList []string
 
 	// Get object from the request
 	err := json.NewDecoder(r.Body).Decode(&allocReq)
@@ -153,10 +156,14 @@ func AllocAddressHandler(w http.ResponseWriter, r *http.Request, vars map[string
 		return nil, err
 	}
 
+	searchList = append(searchList, nwCfg.Tenant)
+	searchList = append(searchList, nwCfg.NetworkName+"."+nwCfg.Tenant)
 	// Build the response
 	aresp := AddressAllocResponse{
-		NetworkID:   allocReq.NetworkID,
-		IPv4Address: addr + "/" + fmt.Sprintf("%d", nwCfg.SubnetLen),
+		NetworkID:     allocReq.NetworkID,
+		IPv4Address:   addr + "/" + fmt.Sprintf("%d", nwCfg.SubnetLen),
+		DNSIP:         nwCfg.DNSServer,
+		DNSSearchList: searchList,
 	}
 
 	return aresp, nil
