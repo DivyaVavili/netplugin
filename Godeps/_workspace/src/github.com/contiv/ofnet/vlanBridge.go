@@ -345,6 +345,7 @@ func (vl *VlanBridge) processArp(pkt protocol.Ethernet, inPort uint32) {
 
 					// Build the ethernet packet
 					ethPkt := protocol.NewEthernet()
+					ethPkt.VLANID.VID = pkt.VLANID.VID
 					ethPkt.HWDst = arpPkt.HWDst
 					ethPkt.HWSrc = arpPkt.HWSrc
 					ethPkt.Ethertype = 0x0806
@@ -361,6 +362,8 @@ func (vl *VlanBridge) processArp(pkt protocol.Ethernet, inPort uint32) {
 					vl.ofSwitch.Send(pktOut)
 
 					return
+				} else {
+					log.Infof("Not sending a Proxy ARP. SrcEP: %+v, DstEP: %+v", srcEp, dstEp)
 				}
 			}
 			if srcEp != nil && dstEp == nil {
@@ -385,7 +388,7 @@ func (vl *VlanBridge) processArp(pkt protocol.Ethernet, inPort uint32) {
 				pktOut.InPort = inPort
 				pktOut.Data = ethPkt
 				for _, portNo := range vl.uplinkDb {
-                    log.Infof("Sending to uplink: %+v", portNo)
+					log.Infof("Sending to uplink: %+v", portNo)
 					pktOut.AddAction(openflow13.NewActionOutput(portNo))
 				}
 				// Send it out
