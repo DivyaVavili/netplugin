@@ -253,18 +253,17 @@ func (vl *VlanBridge) RemoveUplink(portNo uint32) error {
 
 // AddSvcSpec adds a service spec to proxy
 func (vl *VlanBridge) AddSvcSpec(svcName string, spec *ServiceSpec) error {
-        return nil
+	return nil
 }
 
 // DelSvcSpec removes a service spec from proxy
 func (vl *VlanBridge) DelSvcSpec(svcName string, spec *ServiceSpec) error {
-        return nil
+	return nil
 }
 
 // SvcProviderUpdate Service Proxy Back End update
 func (vl *VlanBridge) SvcProviderUpdate(svcName string, providers []string) {
 }
-
 
 // initialize Fgraph on the switch
 func (vl *VlanBridge) initFgraph() error {
@@ -323,7 +322,7 @@ func (vl *VlanBridge) initFgraph() error {
  *      - ARP Request to a router/VM scenario. Reinject ARP request to uplinks
  * Src EP not known, Dest EP known:
  *      - Proxy ARP if Dest EP is present locally on the host
- * Src and Dest EP not known: 
+ * Src and Dest EP not known:
  *      - Ignore processing the request
  */
 func (vl *VlanBridge) processArp(pkt protocol.Ethernet, inPort uint32) {
@@ -428,4 +427,40 @@ func (vl *VlanBridge) processArp(pkt protocol.Ethernet, inPort uint32) {
 			vl.ofSwitch.Send(pktOut)
 		}
 	}
+}
+
+// SendGARP send's GARP for the specified IP, MAC
+func (vl *VlanBridge) SendGARP(ip net.IP, mac net.HardwareAddr, vlanID uint16) error {
+	log.Infof("(VlanBridge): Sending GARP for (%s, %s) in vlan %d", ip, mac, vlanID)
+	//ep := vl.agent.getEndpointByIp(ip)
+
+	garpPkt, _ := protocol.NewARP(protocol.Type_Request)
+	garpPkt.HWSrc = mac
+	garpPkt.IPSrc = ip
+	garpPkt.HWDst, _ = net.ParseMAC("00:00:00:00:00:00")
+	garpPkt.IPDst = ip
+
+	log.Infof("Sending Gratuitous ARP request: %+v", garpPkt)
+
+	// Build the ethernet packet
+	ethPkt := protocol.NewEthernet()
+	ethPkt.VLANID.VID = vlanID
+	ethPkt.HWDst, _ = net.ParseMAC("FF:FF:FF:FF:FF:FF")
+	ethPkt.HWSrc = mac
+	ethPkt.Ethertype = 0x0806
+	ethPkt.Data = garpPkt
+
+	log.Infof("Sending Gratuitous ARP request Ethernet: %+v", ethPkt)
+
+	// Construct Packet out
+	pktOut := openflow13.NewPacketOut()
+	pktOut.Data = ethPkt
+	for _, portNo := range vl.uplinkDb {
+		log.Infof("Sending to uplink: %+v", portNo)
+		pktOut.AddAction(openflow13.NewActionOutput(portNo))
+	}
+
+	// Send it out
+	vl.ofSwitch.Send(pktOut)
+	return nil
 }

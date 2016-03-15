@@ -17,13 +17,14 @@ package ofnet
 // This file implements the vxlan bridging datapath
 
 import (
-	//"fmt"
 	"errors"
 	"net"
 	"net/rpc"
 	"strings"
 
 	"github.com/contiv/ofnet/ofctrl"
+	"github.com/shaleman/libOpenflow/openflow13"
+	"github.com/shaleman/libOpenflow/protocol"
 
 	log "github.com/Sirupsen/logrus"
 )
@@ -567,12 +568,12 @@ func (vx *Vxlan) RemoveUplink(portNo uint32) error {
 
 // AddSvcSpec adds a service spec to proxy
 func (vx *Vxlan) AddSvcSpec(svcName string, spec *ServiceSpec) error {
-        return nil
+	return nil
 }
 
 // DelSvcSpec removes a service spec from proxy
 func (vx *Vxlan) DelSvcSpec(svcName string, spec *ServiceSpec) error {
-        return nil
+	return nil
 }
 
 // SvcProviderUpdate Service Proxy Back End update
@@ -634,5 +635,40 @@ func (self *Vxlan) initFgraph() error {
 	floodMissFlow.Next(sw.DropAction())
 
 	// Drop all
+	return nil
+}
+
+// SendGARP send's GARP for the specified IP, MAC
+func (self *Vxlan) SendGARP(ip net.IP, mac net.HardwareAddr, vlanID uint16) error {
+	log.Infof("(VxlanBridge): Sending GARP for (%s, %s) in vlan %d", ip, mac, vlanID)
+
+	garpPkt, _ := protocol.NewARP(protocol.Type_Request)
+	garpPkt.HWSrc = mac
+	garpPkt.IPSrc = ip
+	garpPkt.HWDst, _ = net.ParseMAC("00:00:00:00:00:00")
+	garpPkt.IPDst = ip
+
+	log.Infof("Sending Gratuitous ARP request: %+v", garpPkt)
+
+	// Build the ethernet packet
+	ethPkt := protocol.NewEthernet()
+	ethPkt.VLANID.VID = vlanID
+	ethPkt.HWDst, _ = net.ParseMAC("FF:FF:FF:FF:FF:FF")
+	ethPkt.HWSrc = mac
+	ethPkt.Ethertype = 0x0806
+	ethPkt.Data = garpPkt
+
+	log.Infof("Sending Gratuitous ARP request Ethernet: %+v", ethPkt)
+
+	// Construct Packet out
+	pktOut := openflow13.NewPacketOut()
+	pktOut.Data = ethPkt
+	for _, vtepPort := range self.agent.vtepTable {
+		log.Debugf("Sending to Vtep port: %+v", vtepPort)
+		pktOut.AddAction(openflow13.NewActionOutput(*vtepPort))
+	}
+
+	// Send it out
+	self.ofSwitch.Send(pktOut)
 	return nil
 }
