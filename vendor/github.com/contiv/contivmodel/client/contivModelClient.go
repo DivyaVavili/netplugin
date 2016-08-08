@@ -238,6 +238,7 @@ type EndpointGroupLinkSets struct {
 	MatchRules       map[string]Link `json:"MatchRules,omitempty"`
 	Policies         map[string]Link `json:"Policies,omitempty"`
 	Services         map[string]Link `json:"Services,omitempty"`
+	VnfPolicies      map[string]Link `json:"VnfPolicies,omitempty"`
 }
 
 type EndpointGroupLinks struct {
@@ -503,6 +504,7 @@ type TenantLinkSets struct {
 	Networks       map[string]Link `json:"Networks,omitempty"`
 	Policies       map[string]Link `json:"Policies,omitempty"`
 	Servicelbs     map[string]Link `json:"Servicelbs,omitempty"`
+	Vnfs           map[string]Link `json:"Vnfs,omitempty"`
 	VolumeProfiles map[string]Link `json:"VolumeProfiles,omitempty"`
 	Volumes        map[string]Link `json:"Volumes,omitempty"`
 }
@@ -527,6 +529,64 @@ type TenantInspect struct {
 	Config Tenant
 
 	Oper TenantOper
+}
+
+type Vnf struct {
+	// every object has a key
+	Key string `json:"key,omitempty"`
+
+	Encap         string   `json:"encap,omitempty"`         // Encapsulation
+	Group         string   `json:"group,omitempty"`         // Endpoint Group Name
+	PktTag        int      `json:"pktTag,omitempty"`        // Vlan/Vxlan Tag
+	TenantName    string   `json:"tenantName,omitempty"`    // Tenant Name
+	TrafficAction string   `json:"trafficAction,omitempty"` // Traffic action to take
+	VnfLabels     []string `json:"vnfLabels,omitempty"`
+	VnfName       string   `json:"vnfName,omitempty"` // Virtual network function name
+	VnfType       string   `json:"vnfType,omitempty"` // Type of VNF
+	VtepIP        string   `json:"vtepIP,omitempty"`  // VTEP IP of VNF
+
+	// add link-sets and links
+	LinkSets VnfLinkSets `json:"link-sets,omitempty"`
+	Links    VnfLinks    `json:"links,omitempty"`
+}
+
+type VnfLinkSets struct {
+	VnfPolicies map[string]Link `json:"VnfPolicies,omitempty"`
+}
+
+type VnfLinks struct {
+	Tenant Link `json:"Tenant,omitempty"`
+}
+
+type VnfInspect struct {
+	Config Vnf
+}
+
+type VnfPolicy struct {
+	// every object has a key
+	Key string `json:"key,omitempty"`
+
+	DestUnit      string `json:"destUnit,omitempty"`      // Destination unit
+	SourceUnit    string `json:"sourceUnit,omitempty"`    // Source Unit
+	TenantName    string `json:"tenantName,omitempty"`    // Tenant Name
+	Vnf           string `json:"vnf,omitempty"`           // VNF to insert
+	VnfPolicyName string `json:"vnfPolicyName,omitempty"` // VNF policy name
+
+	// add link-sets and links
+	LinkSets VnfPolicyLinkSets `json:"link-sets,omitempty"`
+	Links    VnfPolicyLinks    `json:"links,omitempty"`
+}
+
+type VnfPolicyLinkSets struct {
+	Vnf map[string]Link `json:"Vnf,omitempty"`
+}
+
+type VnfPolicyLinks struct {
+	MatchUnit Link `json:"MatchUnit,omitempty"`
+}
+
+type VnfPolicyInspect struct {
+	Config VnfPolicy
 }
 
 type Volume struct {
@@ -1498,6 +1558,88 @@ func (c *ContivClient) TenantInspect(tenantName string) (*TenantInspect, error) 
 	err := httpGet(url, &obj)
 	if err != nil {
 		log.Debugf("Error getting tenant %+v. Err: %v", keyStr, err)
+		return nil, err
+	}
+
+	return &obj, nil
+}
+
+// VnfPost posts the vnf object
+func (c *ContivClient) VnfPost(obj *Vnf) error {
+	// build key and URL
+	keyStr := obj.TenantName + ":" + obj.VnfName
+	url := c.baseURL + "/api/v1/vnfs/" + keyStr + "/"
+
+	// http post the object
+	err := httpPost(url, obj)
+	if err != nil {
+		log.Debugf("Error creating vnf %+v. Err: %v", obj, err)
+		return err
+	}
+
+	return nil
+}
+
+// VnfList lists all vnf objects
+func (c *ContivClient) VnfList() (*[]*Vnf, error) {
+	// build key and URL
+	url := c.baseURL + "/api/v1/vnfs/"
+
+	// http get the object
+	var objList []*Vnf
+	err := httpGet(url, &objList)
+	if err != nil {
+		log.Debugf("Error getting vnfs. Err: %v", err)
+		return nil, err
+	}
+
+	return &objList, nil
+}
+
+// VnfGet gets the vnf object
+func (c *ContivClient) VnfGet(tenantName string, vnfName string) (*Vnf, error) {
+	// build key and URL
+	keyStr := tenantName + ":" + vnfName
+	url := c.baseURL + "/api/v1/vnfs/" + keyStr + "/"
+
+	// http get the object
+	var obj Vnf
+	err := httpGet(url, &obj)
+	if err != nil {
+		log.Debugf("Error getting vnf %+v. Err: %v", keyStr, err)
+		return nil, err
+	}
+
+	return &obj, nil
+}
+
+// VnfDelete deletes the vnf object
+func (c *ContivClient) VnfDelete(tenantName string, vnfName string) error {
+	// build key and URL
+	keyStr := tenantName + ":" + vnfName
+	url := c.baseURL + "/api/v1/vnfs/" + keyStr + "/"
+
+	// http get the object
+	err := httpDelete(url)
+	if err != nil {
+		log.Debugf("Error deleting vnf %s. Err: %v", keyStr, err)
+		return err
+	}
+
+	return nil
+}
+
+// VnfInspect gets the vnfInspect object
+func (c *ContivClient) VnfInspect(tenantName string, vnfName string) (*VnfInspect, error) {
+	// build key and URL
+	keyStr := tenantName + ":" + vnfName
+	url := c.baseURL + "/api/v1/inspect/vnfs/" + keyStr + "/"
+
+	// http get the object
+	var obj VnfInspect
+	err := httpGet(url, &obj)
+	if err != nil {
+		log.Debugf("Error getting vnf %+v. Err: %v", keyStr, err)
 		return nil, err
 	}
 

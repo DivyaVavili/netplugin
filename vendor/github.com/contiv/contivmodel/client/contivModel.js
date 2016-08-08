@@ -760,6 +760,77 @@ var TenantModalView = React.createClass({
 
 module.exports.TenantSummaryView = TenantSummaryView
 module.exports.TenantModalView = TenantModalView
+var VnfSummaryView = React.createClass({
+  	render: function() {
+		var self = this
+
+		// Walk thru all objects
+		var vnfListView = self.props.vnfs.map(function(vnf){
+			return (
+				<ModalTrigger modal={<VnfModalView vnf={ vnf }/>}>
+					<tr key={ vnf.key } className="info">
+						
+						         
+					</tr>
+				</ModalTrigger>
+			);
+		});
+
+		return (
+        <div>
+			<Table hover>
+				<thead>
+					<tr>
+					
+					         
+					</tr>
+				</thead>
+				<tbody>
+            		{ vnfListView }
+				</tbody>
+			</Table>
+        </div>
+    	);
+	}
+});
+
+var VnfModalView = React.createClass({
+	render() {
+		var obj = this.props.vnf
+	    return (
+	      <Modal {...this.props} bsStyle='primary' bsSize='large' title='Vnf' animation={false}>
+	        <div className='modal-body' style={ {margin: '5%',} }>
+			
+			
+				<Input type='text' label='Encapsulation' ref='encap' defaultValue={obj.encap} placeholder='Encapsulation' />
+			
+				<Input type='text' label='Endpoint Group Name' ref='group' defaultValue={obj.group} placeholder='Endpoint Group Name' />
+			
+				<Input type='text' label='Vlan/Vxlan Tag' ref='pktTag' defaultValue={obj.pktTag} placeholder='Vlan/Vxlan Tag' />
+			
+				<Input type='text' label='Tenant Name' ref='tenantName' defaultValue={obj.tenantName} placeholder='Tenant Name' />
+			
+				<Input type='text' label='Traffic action to take' ref='trafficAction' defaultValue={obj.trafficAction} placeholder='Traffic action to take' />
+			
+				<Input type='text' label='Labels identifying VNFs (key=value pair)' ref='vnfLabels' defaultValue={obj.vnfLabels} placeholder='Labels identifying VNFs (key=value pair)' />
+			
+				<Input type='text' label='Virtual network function name' ref='vnfName' defaultValue={obj.vnfName} placeholder='Virtual network function name' />
+			
+				<Input type='text' label='Type of VNF' ref='vnfType' defaultValue={obj.vnfType} placeholder='Type of VNF' />
+			
+				<Input type='text' label='VTEP IP of VNF' ref='vtepIP' defaultValue={obj.vtepIP} placeholder='VTEP IP of VNF' />
+			
+			</div>
+	        <div className='modal-footer'>
+				<Button onClick={this.props.onRequestHide}>Close</Button>
+	        </div>
+	      </Modal>
+	    );
+  	}
+});
+
+module.exports.VnfSummaryView = VnfSummaryView
+module.exports.VnfModalView = VnfModalView
 var VolumeSummaryView = React.createClass({
   	render: function() {
 		var self = this

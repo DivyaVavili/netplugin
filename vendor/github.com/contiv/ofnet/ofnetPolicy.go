@@ -426,7 +426,15 @@ func (self *PolicyAgent) AddRule(rule *OfnetPolicyRule, ret *bool) error {
 			log.Errorf("Error installing flow {%+v}. Err: %v", ruleFlow, err)
 			return err
 		}
-	} else {
+	} else if rule.Action == "redirect" {
+        // Redirect traffic
+        log.Errorf("Got a redirect policy request")
+        return errors.New("Got a redirect policy request")
+    } else if rule.Action == "copy" {
+        // Copy traffic
+        log.Errorf("Got a copy policy request")
+        return errors.New("Got a copy policy request")
+    } else {
 		log.Errorf("Unknown action in rule {%+v}", rule)
 		return errors.New("Unknown action in rule")
 	}

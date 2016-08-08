@@ -75,6 +75,9 @@
 				"policies": {
 					"ref": "policy"
 				},
+				"vnfPolicies": {
+					"ref": "vnfPolicy"
+				},
 				"matchRules": {
 					"ref": "rule"
 				},

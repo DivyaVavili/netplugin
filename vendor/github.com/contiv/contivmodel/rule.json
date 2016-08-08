@@ -116,10 +116,10 @@
 				}
 			},
 			"links": {
-                                "matchEndpointGroup": {
-                                        "ref": "endpointGroup"
-                                }
-                        }
+				"matchEndpointGroup": {
+					"ref": "endpointGroup"
+				}
+			}
 		}
 	]
 }

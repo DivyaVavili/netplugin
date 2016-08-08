@@ -112,6 +112,7 @@ type EndpointGroupLinkSets struct {
 	MatchRules       map[string]modeldb.Link `json:"MatchRules,omitempty"`
 	Policies         map[string]modeldb.Link `json:"Policies,omitempty"`
 	Services         map[string]modeldb.Link `json:"Services,omitempty"`
+	VnfPolicies      map[string]modeldb.Link `json:"VnfPolicies,omitempty"`
 }
 
 type EndpointGroupLinks struct {
@@ -377,6 +378,7 @@ type TenantLinkSets struct {
 	Networks       map[string]modeldb.Link `json:"Networks,omitempty"`
 	Policies       map[string]modeldb.Link `json:"Policies,omitempty"`
 	Servicelbs     map[string]modeldb.Link `json:"Servicelbs,omitempty"`
+	Vnfs           map[string]modeldb.Link `json:"Vnfs,omitempty"`
 	VolumeProfiles map[string]modeldb.Link `json:"VolumeProfiles,omitempty"`
 	Volumes        map[string]modeldb.Link `json:"Volumes,omitempty"`
 }
@@ -401,6 +403,64 @@ type TenantInspect struct {
 	Config Tenant
 
 	Oper TenantOper
+}
+
+type Vnf struct {
+	// every object has a key
+	Key string `json:"key,omitempty"`
+
+	Encap         string   `json:"encap,omitempty"`         // Encapsulation
+	Group         string   `json:"group,omitempty"`         // Endpoint Group Name
+	PktTag        int      `json:"pktTag,omitempty"`        // Vlan/Vxlan Tag
+	TenantName    string   `json:"tenantName,omitempty"`    // Tenant Name
+	TrafficAction string   `json:"trafficAction,omitempty"` // Traffic action to take
+	VnfLabels     []string `json:"vnfLabels,omitempty"`
+	VnfName       string   `json:"vnfName,omitempty"` // Virtual network function name
+	VnfType       string   `json:"vnfType,omitempty"` // Type of VNF
+	VtepIP        string   `json:"vtepIP,omitempty"`  // VTEP IP of VNF
+
+	// add link-sets and links
+	LinkSets VnfLinkSets `json:"link-sets,omitempty"`
+	Links    VnfLinks    `json:"links,omitempty"`
+}
+
+type VnfLinkSets struct {
+	VnfPolicies map[string]modeldb.Link `json:"VnfPolicies,omitempty"`
+}
+
+type VnfLinks struct {
+	Tenant modeldb.Link `json:"Tenant,omitempty"`
+}
+
+type VnfInspect struct {
+	Config Vnf
+}
+
+type VnfPolicy struct {
+	// every object has a key
+	Key string `json:"key,omitempty"`
+
+	DestUnit      string `json:"destUnit,omitempty"`      // Destination unit
+	SourceUnit    string `json:"sourceUnit,omitempty"`    // Source Unit
+	TenantName    string `json:"tenantName,omitempty"`    // Tenant Name
+	Vnf           string `json:"vnf,omitempty"`           // VNF to insert
+	VnfPolicyName string `json:"vnfPolicyName,omitempty"` // VNF policy name
+
+	// add link-sets and links
+	LinkSets VnfPolicyLinkSets `json:"link-sets,omitempty"`
+	Links    VnfPolicyLinks    `json:"links,omitempty"`
+}
+
+type VnfPolicyLinkSets struct {
+	Vnf map[string]modeldb.Link `json:"Vnf,omitempty"`
+}
+
+type VnfPolicyLinks struct {
+	MatchUnit modeldb.Link `json:"MatchUnit,omitempty"`
+}
+
+type VnfPolicyInspect struct {
+	Config VnfPolicy
 }
 
 type Volume struct {
@@ -471,6 +531,7 @@ type Collections struct {
 	rules              map[string]*Rule
 	serviceLBs         map[string]*ServiceLB
 	tenants            map[string]*Tenant
+	vnfs               map[string]*Vnf
 	volumes            map[string]*Volume
 	volumeProfiles     map[string]*VolumeProfile
 }
@@ -561,6 +622,12 @@ type TenantCallbacks interface {
 	TenantDelete(tenant *Tenant) error
 }
 
+type VnfCallbacks interface {
+	VnfCreate(vnf *Vnf) error
+	VnfUpdate(vnf, params *Vnf) error
+	VnfDelete(vnf *Vnf) error
+}
+
 type VolumeCallbacks interface {
 	VolumeCreate(volume *Volume) error
 	VolumeUpdate(volume, params *Volume) error
@@ -586,6 +653,7 @@ type CallbackHandlers struct {
 	RuleCb              RuleCallbacks
 	ServiceLBCb         ServiceLBCallbacks
 	TenantCb            TenantCallbacks
+	VnfCb               VnfCallbacks
 	VolumeCb            VolumeCallbacks
 	VolumeProfileCb     VolumeProfileCallbacks
 }
@@ -605,6 +673,7 @@ func Init() {
 	collections.rules = make(map[string]*Rule)
 	collections.serviceLBs = make(map[string]*ServiceLB)
 	collections.tenants = make(map[string]*Tenant)
+	collections.vnfs = make(map[string]*Vnf)
 	collections.volumes = make(map[string]*Volume)
 	collections.volumeProfiles = make(map[string]*VolumeProfile)
 
@@ -620,6 +689,7 @@ func Init() {
 	restoreRule()
 	restoreServiceLB()
 	restoreTenant()
+	restoreVnf()
 	restoreVolume()
 	restoreVolumeProfile()
 
@@ -671,6 +741,10 @@ func RegisterServiceLBCallbacks(handler ServiceLBCallbacks) {
 
 func RegisterTenantCallbacks(handler TenantCallbacks) {
 	objCallbackHandler.TenantCb = handler
+}
+
+func RegisterVnfCallbacks(handler VnfCallbacks) {
+	objCallbackHandler.VnfCb = handler
 }
 
 func RegisterVolumeCallbacks(handler VolumeCallbacks) {
@@ -865,6 +939,19 @@ func AddRoutes(router *mux.Router) {
 
 	inspectRoute = "/api/v1/inspect/tenants/{key}/"
 	router.Path(inspectRoute).Methods("GET").HandlerFunc(makeHttpHandler(httpInspectTenant))
+
+	// Register vnf
+	route = "/api/v1/vnfs/{key}/"
+	listRoute = "/api/v1/vnfs/"
+	log.Infof("Registering %s", route)
+	router.Path(listRoute).Methods("GET").HandlerFunc(makeHttpHandler(httpListVnfs))
+	router.Path(route).Methods("GET").HandlerFunc(makeHttpHandler(httpGetVnf))
+	router.Path(route).Methods("POST").HandlerFunc(makeHttpHandler(httpCreateVnf))
+	router.Path(route).Methods("PUT").HandlerFunc(makeHttpHandler(httpCreateVnf))
+	router.Path(route).Methods("DELETE").HandlerFunc(makeHttpHandler(httpDeleteVnf))
+
+	inspectRoute = "/api/v1/inspect/vnfs/{key}/"
+	router.Path(inspectRoute).Methods("GET").HandlerFunc(makeHttpHandler(httpInspectVnf))
 
 	// Register volume
 	route = "/api/v1/volumes/{key}/"
@@ -4307,6 +4394,310 @@ func ValidateTenant(obj *Tenant) error {
 	tenantNameMatch := regexp.MustCompile("^(([a-zA-Z0-9]|[a-zA-Z0-9][a-zA-Z0-9\\-]*[a-zA-Z0-9])\\.)*([A-Za-z0-9]|[A-Za-z0-9][A-Za-z0-9\\-]*[A-Za-z0-9])$")
 	if tenantNameMatch.MatchString(obj.TenantName) == false {
 		return errors.New("tenantName string invalid format")
+	}
+
+	return nil
+}
+
+// GET Oper REST call
+func httpInspectVnf(w http.ResponseWriter, r *http.Request, vars map[string]string) (interface{}, error) {
+	var obj VnfInspect
+	log.Debugf("Received httpInspectVnf: %+v", vars)
+
+	key := vars["key"]
+
+	objConfig := collections.vnfs[key]
+	if objConfig == nil {
+		log.Errorf("vnf %s not found", key)
+		return nil, errors.New("vnf not found")
+	}
+	obj.Config = *objConfig
+
+	// Return the obj
+	return &obj, nil
+}
+
+// LIST REST call
+func httpListVnfs(w http.ResponseWriter, r *http.Request, vars map[string]string) (interface{}, error) {
+	log.Debugf("Received httpListVnfs: %+v", vars)
+
+	list := make([]*Vnf, 0)
+	for _, obj := range collections.vnfs {
+		list = append(list, obj)
+	}
+
+	// Return the list
+	return list, nil
+}
+
+// GET REST call
+func httpGetVnf(w http.ResponseWriter, r *http.Request, vars map[string]string) (interface{}, error) {
+	log.Debugf("Received httpGetVnf: %+v", vars)
+
+	key := vars["key"]
+
+	obj := collections.vnfs[key]
+	if obj == nil {
+		log.Errorf("vnf %s not found", key)
+		return nil, errors.New("vnf not found")
+	}
+
+	// Return the obj
+	return obj, nil
+}
+
+// CREATE REST call
+func httpCreateVnf(w http.ResponseWriter, r *http.Request, vars map[string]string) (interface{}, error) {
+	log.Debugf("Received httpGetVnf: %+v", vars)
+
+	var obj Vnf
+	key := vars["key"]
+
+	// Get object from the request
+	err := json.NewDecoder(r.Body).Decode(&obj)
+	if err != nil {
+		log.Errorf("Error decoding vnf create request. Err %v", err)
+		return nil, err
+	}
+
+	// set the key
+	obj.Key = key
+
+	// Create the object
+	err = CreateVnf(&obj)
+	if err != nil {
+		log.Errorf("CreateVnf error for: %+v. Err: %v", obj, err)
+		return nil, err
+	}
+
+	// Return the obj
+	return obj, nil
+}
+
+// DELETE rest call
+func httpDeleteVnf(w http.ResponseWriter, r *http.Request, vars map[string]string) (interface{}, error) {
+	log.Debugf("Received httpDeleteVnf: %+v", vars)
+
+	key := vars["key"]
+
+	// Delete the object
+	err := DeleteVnf(key)
+	if err != nil {
+		log.Errorf("DeleteVnf error for: %s. Err: %v", key, err)
+		return nil, err
+	}
+
+	// Return the obj
+	return key, nil
+}
+
+// Create a vnf object
+func CreateVnf(obj *Vnf) error {
+	// Validate parameters
+	err := ValidateVnf(obj)
+	if err != nil {
+		log.Errorf("ValidateVnf retruned error for: %+v. Err: %v", obj, err)
+		return err
+	}
+
+	// Check if we handle this object
+	if objCallbackHandler.VnfCb == nil {
+		log.Errorf("No callback registered for vnf object")
+		return errors.New("Invalid object type")
+	}
+
+	saveObj := obj
+
+	// Check if object already exists
+	if collections.vnfs[obj.Key] != nil {
+		// Perform Update callback
+		err = objCallbackHandler.VnfCb.VnfUpdate(collections.vnfs[obj.Key], obj)
+		if err != nil {
+			log.Errorf("VnfUpdate retruned error for: %+v. Err: %v", obj, err)
+			return err
+		}
+
+		// save the original object after update
+		saveObj = collections.vnfs[obj.Key]
+	} else {
+		// save it in cache
+		collections.vnfs[obj.Key] = obj
+
+		// Perform Create callback
+		err = objCallbackHandler.VnfCb.VnfCreate(obj)
+		if err != nil {
+			log.Errorf("VnfCreate retruned error for: %+v. Err: %v", obj, err)
+			delete(collections.vnfs, obj.Key)
+			return err
+		}
+	}
+
+	// Write it to modeldb
+	err = saveObj.Write()
+	if err != nil {
+		log.Errorf("Error saving vnf %s to db. Err: %v", saveObj.Key, err)
+		return err
+	}
+
+	return nil
+}
+
+// Return a pointer to vnf from collection
+func FindVnf(key string) *Vnf {
+	obj := collections.vnfs[key]
+	if obj == nil {
+		return nil
+	}
+
+	return obj
+}
+
+// Delete a vnf object
+func DeleteVnf(key string) error {
+	obj := collections.vnfs[key]
+	if obj == nil {
+		log.Errorf("vnf %s not found", key)
+		return errors.New("vnf not found")
+	}
+
+	// Check if we handle this object
+	if objCallbackHandler.VnfCb == nil {
+		log.Errorf("No callback registered for vnf object")
+		return errors.New("Invalid object type")
+	}
+
+	// Perform callback
+	err := objCallbackHandler.VnfCb.VnfDelete(obj)
+	if err != nil {
+		log.Errorf("VnfDelete retruned error for: %+v. Err: %v", obj, err)
+		return err
+	}
+
+	// delete it from modeldb
+	err = obj.Delete()
+	if err != nil {
+		log.Errorf("Error deleting vnf %s. Err: %v", obj.Key, err)
+	}
+
+	// delete it from cache
+	delete(collections.vnfs, key)
+
+	return nil
+}
+
+func (self *Vnf) GetType() string {
+	return "vnf"
+}
+
+func (self *Vnf) GetKey() string {
+	return self.Key
+}
+
+func (self *Vnf) Read() error {
+	if self.Key == "" {
+		log.Errorf("Empty key while trying to read vnf object")
+		return errors.New("Empty key")
+	}
+
+	return modeldb.ReadObj("vnf", self.Key, self)
+}
+
+func (self *Vnf) Write() error {
+	if self.Key == "" {
+		log.Errorf("Empty key while trying to Write vnf object")
+		return errors.New("Empty key")
+	}
+
+	return modeldb.WriteObj("vnf", self.Key, self)
+}
+
+func (self *Vnf) Delete() error {
+	if self.Key == "" {
+		log.Errorf("Empty key while trying to Delete vnf object")
+		return errors.New("Empty key")
+	}
+
+	return modeldb.DeleteObj("vnf", self.Key)
+}
+
+func restoreVnf() error {
+	strList, err := modeldb.ReadAllObj("vnf")
+	if err != nil {
+		log.Errorf("Error reading vnf list. Err: %v", err)
+	}
+
+	for _, objStr := range strList {
+		// Parse the json model
+		var vnf Vnf
+		err = json.Unmarshal([]byte(objStr), &vnf)
+		if err != nil {
+			log.Errorf("Error parsing object %s, Err %v", objStr, err)
+			return err
+		}
+
+		// add it to the collection
+		collections.vnfs[vnf.Key] = &vnf
+	}
+
+	return nil
+}
+
+// Validate a vnf object
+func ValidateVnf(obj *Vnf) error {
+	// Validate key is correct
+	keyStr := obj.TenantName + ":" + obj.VnfName
+	if obj.Key != keyStr {
+		log.Errorf("Expecting Vnf Key: %s. Got: %s", keyStr, obj.Key)
+		return errors.New("Invalid Key")
+	}
+
+	// Validate each field
+
+	encapMatch := regexp.MustCompile("^(vlan|vxlan)$")
+	if encapMatch.MatchString(obj.Encap) == false {
+		return errors.New("encap string invalid format")
+	}
+
+	groupMatch := regexp.MustCompile("^(([a-zA-Z0-9]|[a-zA-Z0-9][a-zA-Z0-9\\-]*[a-zA-Z0-9])\\.)*([A-Za-z0-9]|[A-Za-z0-9][A-Za-z0-9\\-]*[A-Za-z0-9])$")
+	if groupMatch.MatchString(obj.Group) == false {
+		return errors.New("group string invalid format")
+	}
+
+	if obj.PktTag > 1.6777216e+07 {
+		return errors.New("pktTag Value Out of bound")
+	}
+
+	if len(obj.TenantName) > 64 {
+		return errors.New("tenantName string too long")
+	}
+
+	tenantNameMatch := regexp.MustCompile("^(([a-zA-Z0-9]|[a-zA-Z0-9][a-zA-Z0-9\\-]*[a-zA-Z0-9])\\.)*([A-Za-z0-9]|[A-Za-z0-9][A-Za-z0-9\\-]*[A-Za-z0-9])$")
+	if tenantNameMatch.MatchString(obj.TenantName) == false {
+		return errors.New("tenantName string invalid format")
+	}
+
+	trafficActionMatch := regexp.MustCompile("^(redirect|copy)$")
+	if trafficActionMatch.MatchString(obj.TrafficAction) == false {
+		return errors.New("trafficAction string invalid format")
+	}
+
+	if len(obj.VnfName) > 64 {
+		return errors.New("vnfName string too long")
+	}
+
+	vnfNameMatch := regexp.MustCompile("^(([a-zA-Z0-9]|[a-zA-Z0-9][a-zA-Z0-9\\-]*[a-zA-Z0-9])\\.)*([A-Za-z0-9]|[A-Za-z0-9][A-Za-z0-9\\-]*[A-Za-z0-9])$")
+	if vnfNameMatch.MatchString(obj.VnfName) == false {
+		return errors.New("vnfName string invalid format")
+	}
+
+	vnfTypeMatch := regexp.MustCompile("^(firewall|span)$")
+	if vnfTypeMatch.MatchString(obj.VnfType) == false {
+		return errors.New("vnfType string invalid format")
+	}
+
+	vtepIPMatch := regexp.MustCompile("^((25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])(\\.(25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])){3})?$")
+	if vtepIPMatch.MatchString(obj.VtepIP) == false {
+		return errors.New("vtepIP string invalid format")
 	}
 
 	return nil

@@ -95,10 +95,13 @@
 					"ref": "volumeProfile"
 				},
 				"servicelbs":{
-                    "ref": "servicelb"
-        },
+					"ref": "servicelb"
+				},
 				"netProfiles": {
 					"ref": "netprofile"
+				},
+				"vnfs":{
+					"ref": "vnf"
 				}
 			}
 		}

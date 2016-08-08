@@ -1,0 +1,54 @@
+{
+	"name": "contivModel",
+	"objects": [
+		{
+			"name": "vnfPolicy",
+			"version": "v1",
+			"type": "object",
+			"key": [ "tenantName", "vnfPolicyName"],
+			"cfgProperties": {
+				"vnfPolicyName": {
+					"type": "string",
+					"title": "VNF policy name",
+					"length": 64,
+					"format": "^(([a-zA-Z0-9]|[a-zA-Z0-9][a-zA-Z0-9\\\\-]*[a-zA-Z0-9])\\\\.)*([A-Za-z0-9]|[A-Za-z0-9][A-Za-z0-9\\\\-]*[A-Za-z0-9])$",
+					"showSummary": true
+				},
+				"tenantName": {
+					"type": "string",
+					"title": "Tenant Name",
+					"length": 64,
+					"format": "^(([a-zA-Z0-9]|[a-zA-Z0-9][a-zA-Z0-9\\\\-]*[a-zA-Z0-9])\\\\.)*([A-Za-z0-9]|[A-Za-z0-9][A-Za-z0-9\\\\-]*[A-Za-z0-9])$"
+				},
+				"sourceUnit": {
+					"type": "string",
+					"title": "Source Unit",
+					"length": 64,
+					"format": "^(([a-zA-Z0-9]|[a-zA-Z0-9][a-zA-Z0-9\\\\-]*[a-zA-Z0-9])\\\\.)*([A-Za-z0-9]|[A-Za-z0-9][A-Za-z0-9\\\\-]*[A-Za-z0-9])$"
+				},
+				"destUnit": {
+					"type": "string",
+					"title": "Destination unit",
+					"length": 64,
+					"format": "^(([a-zA-Z0-9]|[a-zA-Z0-9][a-zA-Z0-9\\\\-]*[a-zA-Z0-9])\\\\.)*([A-Za-z0-9]|[A-Za-z0-9][A-Za-z0-9\\\\-]*[A-Za-z0-9])$"
+				},
+				"vnf": {
+					"type": "string",
+					"title": "VNF to insert",
+					"length": 64,
+					"format": "^(([a-zA-Z0-9]|[a-zA-Z0-9][a-zA-Z0-9\\\\-]*[a-zA-Z0-9])\\\\.)*([A-Za-z0-9]|[A-Za-z0-9][A-Za-z0-9\\\\-]*[A-Za-z0-9])$"
+				}
+			},
+			"link-sets": {
+				"vnf": {
+					"ref": "vnf"
+				}
+			},
+			"links": {
+				"matchUnit": {
+					"ref": "endpointGroup"
+				}
+			}
+		}
+	]
+}

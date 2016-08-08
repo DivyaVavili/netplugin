@@ -591,6 +591,49 @@ class objmodelClient:
 	    return json.loads(retData)
 
 
+	# Create vnf
+	def createVnf(self, obj):
+	    postUrl = self.baseUrl + '/api/v1/vnfs/' + obj.tenantName + ":" + obj.vnfName  + '/'
+
+	    jdata = json.dumps({ 
+			"encap": obj.encap, 
+			"group": obj.group, 
+			"pktTag": obj.pktTag, 
+			"tenantName": obj.tenantName, 
+			"trafficAction": obj.trafficAction, 
+			"vnfLabels": obj.vnfLabels, 
+			"vnfName": obj.vnfName, 
+			"vnfType": obj.vnfType, 
+			"vtepIP": obj.vtepIP, 
+	    })
+
+	    # Post the data
+	    response = httpPost(postUrl, jdata)
+
+	    if response == "Error":
+	        errorExit("Vnf create failure")
+
+	# Delete vnf
+	def deleteVnf(self, tenantName, vnfName):
+	    # Delete Vnf
+	    deleteUrl = self.baseUrl + '/api/v1/vnfs/' + tenantName + ":" + vnfName  + '/'
+	    response = httpDelete(deleteUrl)
+
+	    if response == "Error":
+	        errorExit("Vnf create failure")
+
+	# List all vnf objects
+	def listVnf(self):
+	    # Get a list of vnf objects
+	    retDate = urllib2.urlopen(self.baseUrl + '/api/v1/vnfs/')
+	    if retData == "Error":
+	        errorExit("list Vnf failed")
+
+	    return json.loads(retData)
+
+
+
+
 	# Create volume
 	def createVolume(self, obj):
 	    postUrl = self.baseUrl + '/api/v1/volumes/' + obj.tenantName + ":" + obj.volumeName  + '/'

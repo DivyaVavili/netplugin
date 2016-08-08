@@ -1,0 +1,78 @@
+{
+	"name": "contivModel",
+	"objects": [
+		{
+			"name": "vnf",
+			"version": "v1",
+			"type": "object",
+			"key": [ "tenantName", "vnfName"],
+			"cfgProperties": {
+				"vnfName": {
+					"type": "string",
+					"title": "Virtual network function name",
+					"length": 64,
+					"format": "^(([a-zA-Z0-9]|[a-zA-Z0-9][a-zA-Z0-9\\\\-]*[a-zA-Z0-9])\\\\.)*([A-Za-z0-9]|[A-Za-z0-9][A-Za-z0-9\\\\-]*[A-Za-z0-9])$",
+					"showSummary": true
+				},
+				"tenantName": {
+					"type": "string",
+					"title": "Tenant Name",
+					"length": 64,
+					"format": "^(([a-zA-Z0-9]|[a-zA-Z0-9][a-zA-Z0-9\\\\-]*[a-zA-Z0-9])\\\\.)*([A-Za-z0-9]|[A-Za-z0-9][A-Za-z0-9\\\\-]*[A-Za-z0-9])$"
+				},
+				"vnfType": {
+					"type": "string",
+					"format": "^(firewall|span)$",
+					"title": "Type of VNF",
+					"showSummary": true
+				},
+				"trafficAction": {
+					"type": "string",
+					"format": "^(redirect|copy)$",
+					"title": "Traffic action to take",
+					"showSummary": true
+				},
+				"group": {
+					"type": "string",
+					"format": "^(([a-zA-Z0-9]|[a-zA-Z0-9][a-zA-Z0-9\\\\-]*[a-zA-Z0-9])\\\\.)*([A-Za-z0-9]|[A-Za-z0-9][A-Za-z0-9\\\\-]*[A-Za-z0-9])$",
+					"title": "Endpoint Group Name",
+					"showSummary": true
+				},
+				"vnfLabels": {
+					"type": "array",
+					"title": "Labels identifying VNFs (key=value pair)",
+					"length": 512,
+					"items" :"string"
+				},
+				"encap": {
+					"type": "string",
+					"format": "^(vlan|vxlan)$",
+					"title": "Encapsulation",
+					"showSummary": true
+				},
+				"pktTag": {
+					"type": "int",
+					"title": "Vlan/Vxlan Tag",
+					"showSummary": true,
+					"max": 16777216
+				},
+				"vtepIP": {
+					"type": "string",
+					"format": "^((25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])(\\\\.(25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])){3})?$",
+					"title": "VTEP IP of VNF",
+					"showSummary": true
+				}
+			},
+			"link-sets": {
+				"vnfPolicies": {
+					"ref": "vnfPolicy"
+				}
+			},
+			"links": {
+				"tenant": {
+					"ref": "tenant"
+				}
+			}
+		}
+	]
+}
