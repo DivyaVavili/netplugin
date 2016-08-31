@@ -1646,6 +1646,88 @@ func (c *ContivClient) VnfInspect(tenantName string, vnfName string) (*VnfInspec
 	return &obj, nil
 }
 
+// VnfPolicyPost posts the vnfPolicy object
+func (c *ContivClient) VnfPolicyPost(obj *VnfPolicy) error {
+	// build key and URL
+	keyStr := obj.TenantName + ":" + obj.VnfPolicyName
+	url := c.baseURL + "/api/v1/vnfPolicys/" + keyStr + "/"
+
+	// http post the object
+	err := httpPost(url, obj)
+	if err != nil {
+		log.Debugf("Error creating vnfPolicy %+v. Err: %v", obj, err)
+		return err
+	}
+
+	return nil
+}
+
+// VnfPolicyList lists all vnfPolicy objects
+func (c *ContivClient) VnfPolicyList() (*[]*VnfPolicy, error) {
+	// build key and URL
+	url := c.baseURL + "/api/v1/vnfPolicys/"
+
+	// http get the object
+	var objList []*VnfPolicy
+	err := httpGet(url, &objList)
+	if err != nil {
+		log.Debugf("Error getting vnfPolicys. Err: %v", err)
+		return nil, err
+	}
+
+	return &objList, nil
+}
+
+// VnfPolicyGet gets the vnfPolicy object
+func (c *ContivClient) VnfPolicyGet(tenantName string, vnfPolicyName string) (*VnfPolicy, error) {
+	// build key and URL
+	keyStr := tenantName + ":" + vnfPolicyName
+	url := c.baseURL + "/api/v1/vnfPolicys/" + keyStr + "/"
+
+	// http get the object
+	var obj VnfPolicy
+	err := httpGet(url, &obj)
+	if err != nil {
+		log.Debugf("Error getting vnfPolicy %+v. Err: %v", keyStr, err)
+		return nil, err
+	}
+
+	return &obj, nil
+}
+
+// VnfPolicyDelete deletes the vnfPolicy object
+func (c *ContivClient) VnfPolicyDelete(tenantName string, vnfPolicyName string) error {
+	// build key and URL
+	keyStr := tenantName + ":" + vnfPolicyName
+	url := c.baseURL + "/api/v1/vnfPolicys/" + keyStr + "/"
+
+	// http get the object
+	err := httpDelete(url)
+	if err != nil {
+		log.Debugf("Error deleting vnfPolicy %s. Err: %v", keyStr, err)
+		return err
+	}
+
+	return nil
+}
+
+// VnfPolicyInspect gets the vnfPolicyInspect object
+func (c *ContivClient) VnfPolicyInspect(tenantName string, vnfPolicyName string) (*VnfPolicyInspect, error) {
+	// build key and URL
+	keyStr := tenantName + ":" + vnfPolicyName
+	url := c.baseURL + "/api/v1/inspect/vnfPolicys/" + keyStr + "/"
+
+	// http get the object
+	var obj VnfPolicyInspect
+	err := httpGet(url, &obj)
+	if err != nil {
+		log.Debugf("Error getting vnfPolicy %+v. Err: %v", keyStr, err)
+		return nil, err
+	}
+
+	return &obj, nil
+}
+
 // VolumePost posts the volume object
 func (c *ContivClient) VolumePost(obj *Volume) error {
 	// build key and URL

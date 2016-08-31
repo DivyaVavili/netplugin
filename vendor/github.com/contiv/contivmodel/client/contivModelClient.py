@@ -634,6 +634,45 @@ class objmodelClient:
 
 
 
+	# Create vnfPolicy
+	def createVnfPolicy(self, obj):
+	    postUrl = self.baseUrl + '/api/v1/vnfPolicys/' + obj.tenantName + ":" + obj.vnfPolicyName  + '/'
+
+	    jdata = json.dumps({ 
+			"destUnit": obj.destUnit, 
+			"sourceUnit": obj.sourceUnit, 
+			"tenantName": obj.tenantName, 
+			"vnf": obj.vnf, 
+			"vnfPolicyName": obj.vnfPolicyName, 
+	    })
+
+	    # Post the data
+	    response = httpPost(postUrl, jdata)
+
+	    if response == "Error":
+	        errorExit("VnfPolicy create failure")
+
+	# Delete vnfPolicy
+	def deleteVnfPolicy(self, tenantName, vnfPolicyName):
+	    # Delete VnfPolicy
+	    deleteUrl = self.baseUrl + '/api/v1/vnfPolicys/' + tenantName + ":" + vnfPolicyName  + '/'
+	    response = httpDelete(deleteUrl)
+
+	    if response == "Error":
+	        errorExit("VnfPolicy create failure")
+
+	# List all vnfPolicy objects
+	def listVnfPolicy(self):
+	    # Get a list of vnfPolicy objects
+	    retDate = urllib2.urlopen(self.baseUrl + '/api/v1/vnfPolicys/')
+	    if retData == "Error":
+	        errorExit("list VnfPolicy failed")
+
+	    return json.loads(retData)
+
+
+
+
 	# Create volume
 	def createVolume(self, obj):
 	    postUrl = self.baseUrl + '/api/v1/volumes/' + obj.tenantName + ":" + obj.volumeName  + '/'

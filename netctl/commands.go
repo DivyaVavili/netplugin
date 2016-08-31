@@ -356,7 +356,7 @@ var Commands = []cli.Command{
 					},
 					cli.StringFlag{
 						Name:  "action, j",
-						Usage: "Action to take (allow or deny)",
+						Usage: "Action to take (allow | deny)",
 						Value: "allow",
 					},
 				},
@@ -621,6 +621,119 @@ var Commands = []cli.Command{
 					},
 				},
 				Action: createServiceLB,
+			},
+		},
+	},
+	{
+		Name:  "vnf",
+		Usage: "Virtual network function creation",
+		Subcommands: []cli.Command{
+			{
+				Name:      "nw-func-create",
+				Usage:     "Create a VNF",
+				ArgsUsage: "[vnfName]",
+				Flags: []cli.Flag{
+					tenantFlag,
+					cli.StringFlag{
+						Name:  "type, y",
+						Usage: "Type of VNF - (firewall)",
+						Value: "firewall",
+					},
+					cli.StringFlag{
+						Name:  "group, g",
+						Usage: "Endpoint group",
+					},
+					cli.StringFlag{
+						Name:  "encap, e",
+						Usage: "Encap type (vlan or vxlan)",
+						Value: "vxlan",
+					},
+					cli.StringFlag{
+						Name:  "pkt-tag, p",
+						Usage: "Packet tag (Vlan/Vxlan ids)",
+					},
+					cli.StringFlag{
+						Name:  "vtep-ip, v",
+						Usage: "VTEP IP of physical appliance",
+					},
+					cli.StringFlag{
+						Name:  "vnf-label, l",
+						Usage: "VNF Label(s)",
+					},
+					cli.StringFlag{
+						Name:  "action, a",
+						Usage: "Traffic action to take (redirect | copy)",
+						Value: "redirect",
+					},
+				},
+				Action: createVnf,
+			},
+			{
+				Name:      "nw-func-rm",
+				Aliases:   []string{"nw-func-delete"},
+				Usage:     "Delete a VNF",
+				ArgsUsage: "[vnfName]",
+				Flags:     []cli.Flag{tenantFlag},
+				Action:    deleteVnf,
+			},
+			{
+				Name:      "nw-func-inspect",
+				Usage:     "Inspect a VNF",
+				ArgsUsage: "[vnfName]",
+				Flags:     []cli.Flag{tenantFlag, jsonFlag},
+				Action:    inspectVnf,
+			},
+			{
+				Name:      "nw-func-ls",
+				Aliases:   []string{"nw-func-list"},
+				Usage:     "List VNFs",
+				ArgsUsage: " ",
+				Flags:     []cli.Flag{tenantFlag, quietFlag, jsonFlag},
+				Action:    listVnfs,
+			},
+			{
+				Name:      "policy-create",
+				Usage:     "Create a VNF Policy",
+				ArgsUsage: "[vnfPolicyName]",
+				Flags: []cli.Flag{
+					tenantFlag,
+					cli.StringFlag{
+						Name:  "source-unit, s",
+						Usage: "Source Unit",
+					},
+					cli.StringFlag{
+						Name:  "dest-unit, d",
+						Usage: "Destination Unit",
+					},
+					cli.StringFlag{
+						Name:  "vnf, v",
+						Usage: "VNF to insert",
+					},
+				},
+				Action: createVnfPolicy,
+			},
+			{
+				Name:      "policy-rm",
+				Aliases:   []string{"policy-delete"},
+				Usage:     "Delete a VNF Policy",
+				ArgsUsage: "[vnfPolicyName]",
+				Flags:     []cli.Flag{tenantFlag},
+				Action:    deleteVnfPolicy,
+			},
+			{
+				Name:      "policy-inspect",
+				Usage:     "Inspect a VNF Policy",
+				ArgsUsage: "[vnfPolicyName]",
+				Flags:     []cli.Flag{tenantFlag, jsonFlag},
+				Action:    inspectVnfPolicy,
+			},
+			{
+				Name:      "policy-ls",
+				Aliases:   []string{"policy-list"},
+				Usage:     "List VNF Policies",
+				ArgsUsage: " ",
+				Flags:     []cli.Flag{tenantFlag, quietFlag, jsonFlag},
+				Action:    listVnfPolicies,
 			},
 		},
 	},

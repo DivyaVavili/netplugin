@@ -532,6 +532,7 @@ type Collections struct {
 	serviceLBs         map[string]*ServiceLB
 	tenants            map[string]*Tenant
 	vnfs               map[string]*Vnf
+	vnfPolicys         map[string]*VnfPolicy
 	volumes            map[string]*Volume
 	volumeProfiles     map[string]*VolumeProfile
 }
@@ -628,6 +629,12 @@ type VnfCallbacks interface {
 	VnfDelete(vnf *Vnf) error
 }
 
+type VnfPolicyCallbacks interface {
+	VnfPolicyCreate(vnfPolicy *VnfPolicy) error
+	VnfPolicyUpdate(vnfPolicy, params *VnfPolicy) error
+	VnfPolicyDelete(vnfPolicy *VnfPolicy) error
+}
+
 type VolumeCallbacks interface {
 	VolumeCreate(volume *Volume) error
 	VolumeUpdate(volume, params *Volume) error
@@ -654,6 +661,7 @@ type CallbackHandlers struct {
 	ServiceLBCb         ServiceLBCallbacks
 	TenantCb            TenantCallbacks
 	VnfCb               VnfCallbacks
+	VnfPolicyCb         VnfPolicyCallbacks
 	VolumeCb            VolumeCallbacks
 	VolumeProfileCb     VolumeProfileCallbacks
 }
@@ -674,6 +682,7 @@ func Init() {
 	collections.serviceLBs = make(map[string]*ServiceLB)
 	collections.tenants = make(map[string]*Tenant)
 	collections.vnfs = make(map[string]*Vnf)
+	collections.vnfPolicys = make(map[string]*VnfPolicy)
 	collections.volumes = make(map[string]*Volume)
 	collections.volumeProfiles = make(map[string]*VolumeProfile)
 
@@ -690,6 +699,7 @@ func Init() {
 	restoreServiceLB()
 	restoreTenant()
 	restoreVnf()
+	restoreVnfPolicy()
 	restoreVolume()
 	restoreVolumeProfile()
 
@@ -745,6 +755,10 @@ func RegisterTenantCallbacks(handler TenantCallbacks) {
 
 func RegisterVnfCallbacks(handler VnfCallbacks) {
 	objCallbackHandler.VnfCb = handler
+}
+
+func RegisterVnfPolicyCallbacks(handler VnfPolicyCallbacks) {
+	objCallbackHandler.VnfPolicyCb = handler
 }
 
 func RegisterVolumeCallbacks(handler VolumeCallbacks) {
@@ -952,6 +966,19 @@ func AddRoutes(router *mux.Router) {
 
 	inspectRoute = "/api/v1/inspect/vnfs/{key}/"
 	router.Path(inspectRoute).Methods("GET").HandlerFunc(makeHttpHandler(httpInspectVnf))
+
+	// Register vnfPolicy
+	route = "/api/v1/vnfPolicys/{key}/"
+	listRoute = "/api/v1/vnfPolicys/"
+	log.Infof("Registering %s", route)
+	router.Path(listRoute).Methods("GET").HandlerFunc(makeHttpHandler(httpListVnfPolicys))
+	router.Path(route).Methods("GET").HandlerFunc(makeHttpHandler(httpGetVnfPolicy))
+	router.Path(route).Methods("POST").HandlerFunc(makeHttpHandler(httpCreateVnfPolicy))
+	router.Path(route).Methods("PUT").HandlerFunc(makeHttpHandler(httpCreateVnfPolicy))
+	router.Path(route).Methods("DELETE").HandlerFunc(makeHttpHandler(httpDeleteVnfPolicy))
+
+	inspectRoute = "/api/v1/inspect/vnfPolicys/{key}/"
+	router.Path(inspectRoute).Methods("GET").HandlerFunc(makeHttpHandler(httpInspectVnfPolicy))
 
 	// Register volume
 	route = "/api/v1/volumes/{key}/"
@@ -4698,6 +4725,308 @@ func ValidateVnf(obj *Vnf) error {
 	vtepIPMatch := regexp.MustCompile("^((25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])(\\.(25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])){3})?$")
 	if vtepIPMatch.MatchString(obj.VtepIP) == false {
 		return errors.New("vtepIP string invalid format")
+	}
+
+	return nil
+}
+
+// GET Oper REST call
+func httpInspectVnfPolicy(w http.ResponseWriter, r *http.Request, vars map[string]string) (interface{}, error) {
+	var obj VnfPolicyInspect
+	log.Debugf("Received httpInspectVnfPolicy: %+v", vars)
+
+	key := vars["key"]
+
+	objConfig := collections.vnfPolicys[key]
+	if objConfig == nil {
+		log.Errorf("vnfPolicy %s not found", key)
+		return nil, errors.New("vnfPolicy not found")
+	}
+	obj.Config = *objConfig
+
+	// Return the obj
+	return &obj, nil
+}
+
+// LIST REST call
+func httpListVnfPolicys(w http.ResponseWriter, r *http.Request, vars map[string]string) (interface{}, error) {
+	log.Debugf("Received httpListVnfPolicys: %+v", vars)
+
+	list := make([]*VnfPolicy, 0)
+	for _, obj := range collections.vnfPolicys {
+		list = append(list, obj)
+	}
+
+	// Return the list
+	return list, nil
+}
+
+// GET REST call
+func httpGetVnfPolicy(w http.ResponseWriter, r *http.Request, vars map[string]string) (interface{}, error) {
+	log.Debugf("Received httpGetVnfPolicy: %+v", vars)
+
+	key := vars["key"]
+
+	obj := collections.vnfPolicys[key]
+	if obj == nil {
+		log.Errorf("vnfPolicy %s not found", key)
+		return nil, errors.New("vnfPolicy not found")
+	}
+
+	// Return the obj
+	return obj, nil
+}
+
+// CREATE REST call
+func httpCreateVnfPolicy(w http.ResponseWriter, r *http.Request, vars map[string]string) (interface{}, error) {
+	log.Debugf("Received httpGetVnfPolicy: %+v", vars)
+
+	var obj VnfPolicy
+	key := vars["key"]
+
+	// Get object from the request
+	err := json.NewDecoder(r.Body).Decode(&obj)
+	if err != nil {
+		log.Errorf("Error decoding vnfPolicy create request. Err %v", err)
+		return nil, err
+	}
+
+	// set the key
+	obj.Key = key
+
+	// Create the object
+	err = CreateVnfPolicy(&obj)
+	if err != nil {
+		log.Errorf("CreateVnfPolicy error for: %+v. Err: %v", obj, err)
+		return nil, err
+	}
+
+	// Return the obj
+	return obj, nil
+}
+
+// DELETE rest call
+func httpDeleteVnfPolicy(w http.ResponseWriter, r *http.Request, vars map[string]string) (interface{}, error) {
+	log.Debugf("Received httpDeleteVnfPolicy: %+v", vars)
+
+	key := vars["key"]
+
+	// Delete the object
+	err := DeleteVnfPolicy(key)
+	if err != nil {
+		log.Errorf("DeleteVnfPolicy error for: %s. Err: %v", key, err)
+		return nil, err
+	}
+
+	// Return the obj
+	return key, nil
+}
+
+// Create a vnfPolicy object
+func CreateVnfPolicy(obj *VnfPolicy) error {
+	// Validate parameters
+	err := ValidateVnfPolicy(obj)
+	if err != nil {
+		log.Errorf("ValidateVnfPolicy retruned error for: %+v. Err: %v", obj, err)
+		return err
+	}
+
+	// Check if we handle this object
+	if objCallbackHandler.VnfPolicyCb == nil {
+		log.Errorf("No callback registered for vnfPolicy object")
+		return errors.New("Invalid object type")
+	}
+
+	saveObj := obj
+
+	// Check if object already exists
+	if collections.vnfPolicys[obj.Key] != nil {
+		// Perform Update callback
+		err = objCallbackHandler.VnfPolicyCb.VnfPolicyUpdate(collections.vnfPolicys[obj.Key], obj)
+		if err != nil {
+			log.Errorf("VnfPolicyUpdate retruned error for: %+v. Err: %v", obj, err)
+			return err
+		}
+
+		// save the original object after update
+		saveObj = collections.vnfPolicys[obj.Key]
+	} else {
+		// save it in cache
+		collections.vnfPolicys[obj.Key] = obj
+
+		// Perform Create callback
+		err = objCallbackHandler.VnfPolicyCb.VnfPolicyCreate(obj)
+		if err != nil {
+			log.Errorf("VnfPolicyCreate retruned error for: %+v. Err: %v", obj, err)
+			delete(collections.vnfPolicys, obj.Key)
+			return err
+		}
+	}
+
+	// Write it to modeldb
+	err = saveObj.Write()
+	if err != nil {
+		log.Errorf("Error saving vnfPolicy %s to db. Err: %v", saveObj.Key, err)
+		return err
+	}
+
+	return nil
+}
+
+// Return a pointer to vnfPolicy from collection
+func FindVnfPolicy(key string) *VnfPolicy {
+	obj := collections.vnfPolicys[key]
+	if obj == nil {
+		return nil
+	}
+
+	return obj
+}
+
+// Delete a vnfPolicy object
+func DeleteVnfPolicy(key string) error {
+	obj := collections.vnfPolicys[key]
+	if obj == nil {
+		log.Errorf("vnfPolicy %s not found", key)
+		return errors.New("vnfPolicy not found")
+	}
+
+	// Check if we handle this object
+	if objCallbackHandler.VnfPolicyCb == nil {
+		log.Errorf("No callback registered for vnfPolicy object")
+		return errors.New("Invalid object type")
+	}
+
+	// Perform callback
+	err := objCallbackHandler.VnfPolicyCb.VnfPolicyDelete(obj)
+	if err != nil {
+		log.Errorf("VnfPolicyDelete retruned error for: %+v. Err: %v", obj, err)
+		return err
+	}
+
+	// delete it from modeldb
+	err = obj.Delete()
+	if err != nil {
+		log.Errorf("Error deleting vnfPolicy %s. Err: %v", obj.Key, err)
+	}
+
+	// delete it from cache
+	delete(collections.vnfPolicys, key)
+
+	return nil
+}
+
+func (self *VnfPolicy) GetType() string {
+	return "vnfPolicy"
+}
+
+func (self *VnfPolicy) GetKey() string {
+	return self.Key
+}
+
+func (self *VnfPolicy) Read() error {
+	if self.Key == "" {
+		log.Errorf("Empty key while trying to read vnfPolicy object")
+		return errors.New("Empty key")
+	}
+
+	return modeldb.ReadObj("vnfPolicy", self.Key, self)
+}
+
+func (self *VnfPolicy) Write() error {
+	if self.Key == "" {
+		log.Errorf("Empty key while trying to Write vnfPolicy object")
+		return errors.New("Empty key")
+	}
+
+	return modeldb.WriteObj("vnfPolicy", self.Key, self)
+}
+
+func (self *VnfPolicy) Delete() error {
+	if self.Key == "" {
+		log.Errorf("Empty key while trying to Delete vnfPolicy object")
+		return errors.New("Empty key")
+	}
+
+	return modeldb.DeleteObj("vnfPolicy", self.Key)
+}
+
+func restoreVnfPolicy() error {
+	strList, err := modeldb.ReadAllObj("vnfPolicy")
+	if err != nil {
+		log.Errorf("Error reading vnfPolicy list. Err: %v", err)
+	}
+
+	for _, objStr := range strList {
+		// Parse the json model
+		var vnfPolicy VnfPolicy
+		err = json.Unmarshal([]byte(objStr), &vnfPolicy)
+		if err != nil {
+			log.Errorf("Error parsing object %s, Err %v", objStr, err)
+			return err
+		}
+
+		// add it to the collection
+		collections.vnfPolicys[vnfPolicy.Key] = &vnfPolicy
+	}
+
+	return nil
+}
+
+// Validate a vnfPolicy object
+func ValidateVnfPolicy(obj *VnfPolicy) error {
+	// Validate key is correct
+	keyStr := obj.TenantName + ":" + obj.VnfPolicyName
+	if obj.Key != keyStr {
+		log.Errorf("Expecting VnfPolicy Key: %s. Got: %s", keyStr, obj.Key)
+		return errors.New("Invalid Key")
+	}
+
+	// Validate each field
+
+	if len(obj.DestUnit) > 64 {
+		return errors.New("destUnit string too long")
+	}
+
+	destUnitMatch := regexp.MustCompile("^(([a-zA-Z0-9]|[a-zA-Z0-9][a-zA-Z0-9\\-]*[a-zA-Z0-9])\\.)*([A-Za-z0-9]|[A-Za-z0-9][A-Za-z0-9\\-]*[A-Za-z0-9])$")
+	if destUnitMatch.MatchString(obj.DestUnit) == false {
+		return errors.New("destUnit string invalid format")
+	}
+
+	if len(obj.SourceUnit) > 64 {
+		return errors.New("sourceUnit string too long")
+	}
+
+	sourceUnitMatch := regexp.MustCompile("^(([a-zA-Z0-9]|[a-zA-Z0-9][a-zA-Z0-9\\-]*[a-zA-Z0-9])\\.)*([A-Za-z0-9]|[A-Za-z0-9][A-Za-z0-9\\-]*[A-Za-z0-9])$")
+	if sourceUnitMatch.MatchString(obj.SourceUnit) == false {
+		return errors.New("sourceUnit string invalid format")
+	}
+
+	if len(obj.TenantName) > 64 {
+		return errors.New("tenantName string too long")
+	}
+
+	tenantNameMatch := regexp.MustCompile("^(([a-zA-Z0-9]|[a-zA-Z0-9][a-zA-Z0-9\\-]*[a-zA-Z0-9])\\.)*([A-Za-z0-9]|[A-Za-z0-9][A-Za-z0-9\\-]*[A-Za-z0-9])$")
+	if tenantNameMatch.MatchString(obj.TenantName) == false {
+		return errors.New("tenantName string invalid format")
+	}
+
+	if len(obj.Vnf) > 64 {
+		return errors.New("vnf string too long")
+	}
+
+	vnfMatch := regexp.MustCompile("^(([a-zA-Z0-9]|[a-zA-Z0-9][a-zA-Z0-9\\-]*[a-zA-Z0-9])\\.)*([A-Za-z0-9]|[A-Za-z0-9][A-Za-z0-9\\-]*[A-Za-z0-9])$")
+	if vnfMatch.MatchString(obj.Vnf) == false {
+		return errors.New("vnf string invalid format")
+	}
+
+	if len(obj.VnfPolicyName) > 64 {
+		return errors.New("vnfPolicyName string too long")
+	}
+
+	vnfPolicyNameMatch := regexp.MustCompile("^(([a-zA-Z0-9]|[a-zA-Z0-9][a-zA-Z0-9\\-]*[a-zA-Z0-9])\\.)*([A-Za-z0-9]|[A-Za-z0-9][A-Za-z0-9\\-]*[A-Za-z0-9])$")
+	if vnfPolicyNameMatch.MatchString(obj.VnfPolicyName) == false {
+		return errors.New("vnfPolicyName string invalid format")
 	}
 
 	return nil

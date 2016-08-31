@@ -77,6 +77,8 @@ func NewAPIController(router *mux.Router, storeURL string) *APIController {
 	contivModel.RegisterExtContractsGroupCallbacks(ctrler)
 	contivModel.RegisterEndpointCallbacks(ctrler)
 	contivModel.RegisterNetprofileCallbacks(ctrler)
+	contivModel.RegisterVnfCallbacks(ctrler)
+	contivModel.RegisterVnfPolicyCallbacks(ctrler)
 	// Register routes
 	contivModel.AddRoutes(router)
 
@@ -1267,6 +1269,12 @@ func (ac *APIController) PolicyUpdate(policy, params *contivModel.Policy) error 
 	return nil
 }
 
+// PolicyGetOper gets policy
+func (ac *APIController) PolicyGetOper(policy *contivModel.PolicyInspect) error {
+	log.Infof("Received PolicyGetOper for %+v", policy)
+	return nil
+}
+
 // PolicyDelete deletes policy
 func (ac *APIController) PolicyDelete(policy *contivModel.Policy) error {
 	log.Infof("Received PolicyDelete: %+v", policy)
@@ -1651,6 +1659,12 @@ func (ac *APIController) TenantUpdate(tenant, params *contivModel.Tenant) error 
 	log.Infof("Received TenantUpdate: %+v, params: %+v", tenant, params)
 
 	return core.Errorf("Cant change tenant parameters after its created")
+}
+
+// TenantGetOper gets policy
+func (ac *APIController) TenantGetOper(tenant *contivModel.TenantInspect) error {
+	log.Infof("Received TenantGetOper for %+v", tenant)
+	return nil
 }
 
 // TenantDelete deletes a tenant
@@ -2042,6 +2056,54 @@ func (ac *APIController) ServiceLBGetOper(serviceLB *contivModel.ServiceLBInspec
 	serviceLB.Oper.NumProviders = count
 	return nil
 
+}
+
+// VnfCreate creates a VNF entity
+func (ac *APIController) VnfCreate(vnf *contivModel.Vnf) error {
+	log.Infof("Received Vnf Create: %+v", vnf)
+	return nil
+}
+
+// VnfUpdate updates a VNF entity with new params
+func (ac *APIController) VnfUpdate(vnf, params *contivModel.Vnf) error {
+	log.Infof("Received Vnf Update: %+v", vnf)
+	return errors.New("Cannot update an exisiting VNF")
+}
+
+// VnfDelete deletes a VNF entity
+func (ac *APIController) VnfDelete(vnf *contivModel.Vnf) error {
+	log.Infof("Received Vnf Delete: %+v", vnf)
+	return nil
+}
+
+// VnfGetOper retrieves a VNF entity
+func (ac *APIController) VnfGetOper(vnf *contivModel.VnfInspect) error {
+	log.Infof("Received Vnf inspect: %+v", vnf)
+	return nil
+}
+
+// VnfPolicyCreate creates a VNF policy
+func (ac *APIController) VnfPolicyCreate(vnfPolicy *contivModel.VnfPolicy) error {
+	log.Infof("Received Vnf Policy Create: %+v", vnfPolicy)
+	return nil
+}
+
+// VnfPolicyUpdate updates a VNF policy with new params
+func (ac *APIController) VnfPolicyUpdate(vnfPolicy, params *contivModel.VnfPolicy) error {
+	log.Infof("Received Vnf Policy Update: %+v", vnfPolicy)
+	return errors.New("Cannot update an exisiting VNF Policy")
+}
+
+// VnfPolicyDelete deletes a VNF policy
+func (ac *APIController) VnfPolicyDelete(vnfPolicy *contivModel.VnfPolicy) error {
+	log.Infof("Received Vnf Policy Delete: %+v", vnfPolicy)
+	return nil
+}
+
+// VnfPolicyGetOper retrieves a VNF policy
+func (ac *APIController) VnfPolicyGetOper(vnfPolicy *contivModel.VnfPolicyInspect) error {
+	log.Infof("Received Vnf Policy inspect: %+v", vnfPolicy)
+	return nil
 }
 
 func validateSelectors(selector string) bool {

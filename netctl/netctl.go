@@ -1274,3 +1274,239 @@ func inspectServiceLb(ctx *cli.Context) {
 	os.Stdout.Write(content)
 	os.Stdout.WriteString("\n")
 }
+
+func createVnfPolicy(ctx *cli.Context) error {
+	if len(ctx.Args()) != 1 {
+		errExit(ctx, exitHelp, "Vnf policy name required", true)
+	}
+
+	tenant := ctx.String("tenant")
+	vnfPolicyName := ctx.Args()[0]
+	sUnit := ctx.String("source-unit")
+	dUnit := ctx.String("dest-unit")
+	vnf := ctx.String("vnf")
+
+	errCheck(ctx, getClient(ctx).VnfPolicyPost(&contivClient.VnfPolicy{
+		TenantName:    tenant,
+		VnfPolicyName: vnfPolicyName,
+		SourceUnit:    sUnit,
+		DestUnit:      dUnit,
+		Vnf:           vnf,
+	}))
+
+	fmt.Printf("Creating vnf policy %s:%s\n", tenant, vnfPolicyName)
+
+	return nil
+}
+
+func deleteVnfPolicy(ctx *cli.Context) error {
+	if len(ctx.Args()) != 1 {
+		errExit(ctx, exitHelp, "Vnf policy name required", true)
+	}
+
+	tenant := ctx.String("tenant")
+	vnfPolicyName := ctx.Args()[0]
+
+	fmt.Printf("Deleting vnf policy %s:%s\n", tenant, vnfPolicyName)
+
+	errCheck(ctx, getClient(ctx).VnfPolicyDelete(tenant, vnfPolicyName))
+
+	return nil
+}
+
+func inspectVnfPolicy(ctx *cli.Context) error {
+	if len(ctx.Args()) != 1 {
+		errExit(ctx, exitHelp, "Vnf policy name required", true)
+	}
+
+	tenant := ctx.String("tenant")
+	vnfPolicy := ctx.Args()[0]
+
+	fmt.Printf("Inspecting vnf policy: %s\n", vnfPolicy)
+
+	net, err := getClient(ctx).VnfPolicyInspect(tenant, vnfPolicy)
+	errCheck(ctx, err)
+
+	content, err := json.MarshalIndent(net, "", "  ")
+	if err != nil {
+		errExit(ctx, exitIO, err.Error(), false)
+	}
+	os.Stdout.Write(content)
+	os.Stdout.WriteString("\n")
+
+	return nil
+}
+
+func listVnfPolicies(ctx *cli.Context) error {
+	if len(ctx.Args()) != 0 {
+		errExit(ctx, exitHelp, "More arguments than required", true)
+	}
+
+	tenant := ctx.String("tenant")
+
+	vnfPolicyList, err := getClient(ctx).VnfPolicyList()
+	errCheck(ctx, err)
+
+	var filtered []*contivClient.VnfPolicy
+
+	if ctx.Bool("all") {
+		filtered = *vnfPolicyList
+	} else {
+		for _, vnfPolicy := range *vnfPolicyList {
+			if vnfPolicy.TenantName == tenant {
+				filtered = append(filtered, vnfPolicy)
+			}
+		}
+	}
+
+	if ctx.Bool("json") {
+		dumpJSONList(ctx, &filtered)
+	} else if ctx.Bool("quiet") {
+		vnfPolicies := ""
+		for _, vnfPolicy := range filtered {
+			vnfPolicies += vnfPolicy.VnfPolicyName + "\n"
+		}
+		os.Stdout.WriteString(vnfPolicies)
+	} else {
+		writer := tabwriter.NewWriter(os.Stdout, 0, 2, 2, ' ', 0)
+		defer writer.Flush()
+		writer.Write([]byte("Tenant\tVNF Policy Name\tSource Unit\tDest Unit\tVNF\n"))
+		writer.Write([]byte("------\t---------------\t-----------\t---------\t---\n"))
+
+		for _, vnfPolicy := range filtered {
+			writer.Write(
+				[]byte(fmt.Sprintf("%v\t%v\t%v\t%v\t%v\n",
+					vnfPolicy.TenantName,
+					vnfPolicy.VnfPolicyName,
+					vnfPolicy.SourceUnit,
+					vnfPolicy.DestUnit,
+					vnfPolicy.Vnf,
+				)))
+		}
+	}
+
+	return nil
+}
+
+func createVnf(ctx *cli.Context) error {
+	if len(ctx.Args()) != 1 {
+		errExit(ctx, exitHelp, "Vnf name required", true)
+	}
+
+	tenant := ctx.String("tenant")
+	vnf := ctx.Args()[0]
+	encap := ctx.String("encap")
+	group := ctx.String("group")
+	pktTag := ctx.Int("pkt-tag")
+	vtepIP := ctx.String("vtep-ip")
+	vnfType := ctx.String("type")
+	vnfLabels := ctx.String("vnf-label")
+	trafficAction := ctx.String("action")
+
+	errCheck(ctx, getClient(ctx).VnfPost(&contivClient.Vnf{
+		VnfName:       vnf,
+		TenantName:    tenant,
+		VnfType:       vnfType,
+		TrafficAction: trafficAction,
+		Group:         group,
+		VnfLabel:      vnfLabels,
+		Encap:         encap,
+		PktTag:        pktTag,
+		VtepIP:        vtepIP,
+	}))
+
+	fmt.Printf("Creating vnf %s:%s\n", tenant, vnf)
+
+	return nil
+}
+
+func deleteVnf(ctx *cli.Context) error {
+	if len(ctx.Args()) != 1 {
+		errExit(ctx, exitHelp, "Vnf name required", true)
+	}
+
+	tenant := ctx.String("tenant")
+	vnf := ctx.Args()[0]
+
+	fmt.Printf("Deleting vnf %s:%s\n", tenant, vnf)
+
+	errCheck(ctx, getClient(ctx).VnfDelete(tenant, vnf))
+
+	return nil
+}
+
+func inspectVnf(ctx *cli.Context) error {
+	if len(ctx.Args()) != 1 {
+		errExit(ctx, exitHelp, "Vnf name required", true)
+	}
+
+	tenant := ctx.String("tenant")
+	vnf := ctx.Args()[0]
+
+	fmt.Printf("Inspecting vnf: %s tenant: %s\n", vnf, tenant)
+
+	net, err := getClient(ctx).VnfInspect(tenant, vnf)
+	errCheck(ctx, err)
+
+	content, err := json.MarshalIndent(net, "", "  ")
+	if err != nil {
+		errExit(ctx, exitIO, err.Error(), false)
+	}
+	os.Stdout.Write(content)
+	os.Stdout.WriteString("\n")
+
+	return nil
+}
+
+func listVnfs(ctx *cli.Context) error {
+	if len(ctx.Args()) != 0 {
+		errExit(ctx, exitHelp, "More arguments than required", true)
+	}
+
+	tenant := ctx.String("tenant")
+
+	vnfList, err := getClient(ctx).VnfList()
+	errCheck(ctx, err)
+
+	var filtered []*contivClient.Vnf
+
+	if ctx.Bool("all") {
+		filtered = *vnfList
+	} else {
+		for _, vnf := range *vnfList {
+			if vnf.TenantName == tenant {
+				filtered = append(filtered, vnf)
+			}
+		}
+	}
+
+	if ctx.Bool("json") {
+		dumpJSONList(ctx, &filtered)
+	} else if ctx.Bool("quiet") {
+		vnfs := ""
+		for _, vnf := range filtered {
+			vnfs += vnf.VnfName + "\n"
+		}
+		os.Stdout.WriteString(vnfs)
+	} else {
+		writer := tabwriter.NewWriter(os.Stdout, 0, 2, 2, ' ', 0)
+		defer writer.Flush()
+		writer.Write([]byte("Tenant\tVNF Name\tType\tGroup\tEncap type\tPkt tag\tVtep IP\n"))
+		writer.Write([]byte("------\t--------\t----\t-----\t----------\t-------\t-------\n"))
+
+		for _, vnf := range filtered {
+			writer.Write(
+				[]byte(fmt.Sprintf("%v\t%v\t%v\t%v\t%v\t%v\t%v\n",
+					vnf.TenantName,
+					vnf.VnfName,
+					vnf.VnfType,
+					vnf.Group,
+					vnf.Encap,
+					vnf.PktTag,
+					vnf.VtepIP,
+				)))
+		}
+	}
+
+	return nil
+}
