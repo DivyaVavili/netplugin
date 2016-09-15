@@ -81,6 +81,18 @@ type ConfigServiceLB struct {
 	IPAddress   string
 }
 
+//ConfigVNF keeps servicelb specific configs
+type ConfigVNF struct {
+	VnfName       string
+	Tenant        string
+	VnfLabels     map[string]string
+	TrafficAction string
+	VnfType       string
+	Group         string
+	PktTag        int
+	VtepIP        string
+}
+
 // Config is the top level configuration
 type Config struct {
 	Tenants []ConfigTenant

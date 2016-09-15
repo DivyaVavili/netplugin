@@ -3,9 +3,9 @@ package main
 import (
 	"os"
 
-	"github.com/codegangsta/cli"
 	"github.com/contiv/netplugin/netctl"
 	"github.com/contiv/netplugin/version"
+	"github.com/urfave/cli"
 )
 
 func main() {

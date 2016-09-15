@@ -11,9 +11,9 @@ import (
 	"strings"
 	"text/tabwriter"
 
-	"github.com/codegangsta/cli"
 	contivClient "github.com/contiv/contivmodel/client"
 	"github.com/contiv/netplugin/version"
+	"github.com/urfave/cli"
 )
 
 // DefaultMaster is the master to use when none is provided.
@@ -1394,28 +1394,29 @@ func createVnf(ctx *cli.Context) error {
 	}
 
 	tenant := ctx.String("tenant")
-	vnf := ctx.Args()[0]
+	vnfName := ctx.Args()[0]
 	encap := ctx.String("encap")
 	group := ctx.String("group")
 	pktTag := ctx.Int("pkt-tag")
 	vtepIP := ctx.String("vtep-ip")
 	vnfType := ctx.String("type")
-	vnfLabels := ctx.String("vnf-label")
+	vnfLabels := ctx.StringSlice("vnf-label")
 	trafficAction := ctx.String("action")
 
-	errCheck(ctx, getClient(ctx).VnfPost(&contivClient.Vnf{
-		VnfName:       vnf,
+	vnf := contivClient.Vnf{
+		VnfName:       vnfName,
 		TenantName:    tenant,
 		VnfType:       vnfType,
 		TrafficAction: trafficAction,
 		Group:         group,
-		VnfLabel:      vnfLabels,
 		Encap:         encap,
 		PktTag:        pktTag,
 		VtepIP:        vtepIP,
-	}))
+	}
+	vnf.VnfLabels = append(vnf.VnfLabels, vnfLabels...)
+	errCheck(ctx, getClient(ctx).VnfPost(&vnf))
 
-	fmt.Printf("Creating vnf %s:%s\n", tenant, vnf)
+	fmt.Printf("Creating vnf %s:%s\n", tenant, vnfName)
 
 	return nil
 }

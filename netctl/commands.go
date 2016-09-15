@@ -1,6 +1,6 @@
 package netctl
 
-import "github.com/codegangsta/cli"
+import "github.com/urfave/cli"
 
 var tenantFlag = cli.StringFlag{
 	Name:  "tenant, t",

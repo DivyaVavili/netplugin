@@ -2061,6 +2061,60 @@ func (ac *APIController) ServiceLBGetOper(serviceLB *contivModel.ServiceLBInspec
 // VnfCreate creates a VNF entity
 func (ac *APIController) VnfCreate(vnf *contivModel.Vnf) error {
 	log.Infof("Received Vnf Create: %+v", vnf)
+
+	if vnf.VnfName == "" {
+		return core.Errorf("Invalid VNF name")
+	}
+
+	// Make sure tenant exists
+	if vnf.TenantName == "" {
+		return core.Errorf("Invalid tenant name")
+	}
+
+	tenant := contivModel.FindTenant(vnf.TenantName)
+	if tenant == nil {
+		return core.Errorf("Tenant %s not found", vnf.TenantName)
+	}
+
+	if vnf.VnfLabels == nil && vnf.VtepIP == "" {
+		return core.Errorf("Need to specify either VNF Label(for native VNF) or Vtep IP(for remote appliance)")
+	}
+
+	vnfCfg := intent.ConfigVNF{
+		VnfName:       vnf.VnfName,
+		Tenant:        vnf.TenantName,
+		TrafficAction: vnf.TrafficAction,
+		VnfType:       vnf.VnfType,
+		Group:         vnf.Group,
+		PktTag:        vnf.PktTag,
+		VtepIP:        vnf.VtepIP,
+	}
+
+	vnfCfg.VnfLabels = make(map[string]string)
+
+	for _, vnfLabel := range vnf.VnfLabels {
+		if validateSelectors(vnfLabel) {
+			vnfLabelKey := strings.Split(vnfLabel, "=")[0]
+			vnfLabelValue := strings.Split(vnfLabel, "=")[1]
+			vnfCfg.VnfLabels[vnfLabelKey] = vnfLabelValue
+		} else {
+			return core.Errorf("Invalid vnf label %s. VNF label format is key1=value1", vnfLabel)
+		}
+	}
+
+	// Get the state driver
+	stateDriver, err := utils.GetStateDriver()
+	if err != nil {
+		return err
+	}
+
+	// Add the VNF object
+	err = master.CreateVNF(stateDriver, &vnfCfg)
+	if err != nil {
+		log.Errorf("Error creating VNF object: {%+v}. Err: %v", vnfCfg, err)
+		return err
+	}
+
 	return nil
 }
 
@@ -2085,6 +2139,45 @@ func (ac *APIController) VnfGetOper(vnf *contivModel.VnfInspect) error {
 // VnfPolicyCreate creates a VNF policy
 func (ac *APIController) VnfPolicyCreate(vnfPolicy *contivModel.VnfPolicy) error {
 	log.Infof("Received Vnf Policy Create: %+v", vnfPolicy)
+
+	if vnfPolicy.VnfPolicyName == "" {
+		return core.Errorf("Invalid VNF Policy name")
+	}
+
+	if vnfPolicy.SourceUnit == "" {
+		return core.Errorf("Invalid Source unit")
+	} else if contivModel.FindEndpointGroup(vnfPolicy.SourceUnit) == nil {
+		return core.Errorf("Source EPG not found")
+	}
+
+	if vnfPolicy.DestUnit == "" {
+		return core.Errorf("Invalid Destination unit")
+	} else if contivModel.FindEndpointGroup(vnfPolicy.DestUnit) == nil {
+		return core.Errorf("Dest EPG not found")
+	}
+
+	/* Get the state driver
+	stateDriver, err := utils.GetStateDriver()
+	if err != nil {
+		return err
+	}
+
+		// Build service config
+		serviceIntentCfg := intent.ConfigServiceLB{
+			ServiceName: serviceCfg.ServiceName,
+			Tenant:      serviceCfg.TenantName,
+			Network:     serviceCfg.NetworkName,
+			IPAddress:   serviceCfg.IpAddress,
+		}
+		serviceIntentCfg.Ports = append(serviceIntentCfg.Ports, serviceCfg.Ports...)
+
+		// Add the service object
+		err = master.CreateServiceLB(stateDriver, &serviceIntentCfg)
+		if err != nil {
+			log.Errorf("Error creating service  {%+v}. Err: %v", serviceIntentCfg.ServiceName, err)
+			return err
+		}
+	*/
 	return nil
 }
 
