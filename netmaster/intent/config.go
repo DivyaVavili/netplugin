@@ -81,10 +81,10 @@ type ConfigServiceLB struct {
 	IPAddress   string
 }
 
-//ConfigVNF keeps servicelb specific configs
+//ConfigVNF keeps VNF specific configs
 type ConfigVNF struct {
 	VnfName       string
-	Tenant        string
+	TenantName    string
 	VnfLabels     map[string]string
 	TrafficAction string
 	VnfType       string

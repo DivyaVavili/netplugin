@@ -230,6 +230,9 @@ func (d *MasterDaemon) runLeader() {
 	// initialize policy manager
 	mastercfg.InitPolicyMgr(d.stateDriver, d.ofnetMaster)
 
+	// initialize VNF policy manager
+	mastercfg.InitVnfPolicyMgr(d.stateDriver, d.ofnetMaster)
+
 	// setup HTTP routes
 	d.registerRoutes(router)
 

@@ -109,7 +109,7 @@ func CreateEndpointGroup(tenantName, networkName, groupName string) error {
 	}
 
 	// Special handling for ACI mode
-	if aciMode {
+	if aciMode || RequireVlanAllocation() {
 		if epgCfg.PktTagType != "vlan" {
 			log.Errorf("Network type must be VLAN for ACI mode")
 			return errors.New("Network type must be VLAN for ACI mode")
@@ -167,7 +167,7 @@ func DeleteEndpointGroup(tenantName, groupName string) error {
 		return aErr
 	}
 
-	if aciMode {
+	if aciMode || RequireVlanAllocation() {
 		if epgCfg.PktTagType == "vlan" {
 			err = gCfg.FreeVLAN(uint(epgCfg.PktTag))
 			if err != nil {

@@ -2082,7 +2082,7 @@ func (ac *APIController) VnfCreate(vnf *contivModel.Vnf) error {
 
 	vnfCfg := intent.ConfigVNF{
 		VnfName:       vnf.VnfName,
-		Tenant:        vnf.TenantName,
+		TenantName:    vnf.TenantName,
 		TrafficAction: vnf.TrafficAction,
 		VnfType:       vnf.VnfType,
 		Group:         vnf.Group,
@@ -2102,16 +2102,18 @@ func (ac *APIController) VnfCreate(vnf *contivModel.Vnf) error {
 		}
 	}
 
-	// Get the state driver
-	stateDriver, err := utils.GetStateDriver()
+	// Add the VNF object
+	err := master.CreateVNF(&vnfCfg)
 	if err != nil {
+		log.Errorf("Error creating VNF object: {%+v}. Err: %v", vnfCfg, err)
 		return err
 	}
 
-	// Add the VNF object
-	err = master.CreateVNF(stateDriver, &vnfCfg)
+	modeldb.AddLink(&vnf.Links.Tenant, tenant)
+	modeldb.AddLinkSet(&tenant.LinkSets.Vnfs, vnf)
+
+	err = tenant.Write()
 	if err != nil {
-		log.Errorf("Error creating VNF object: {%+v}. Err: %v", vnfCfg, err)
 		return err
 	}
 
@@ -2127,6 +2129,31 @@ func (ac *APIController) VnfUpdate(vnf, params *contivModel.Vnf) error {
 // VnfDelete deletes a VNF entity
 func (ac *APIController) VnfDelete(vnf *contivModel.Vnf) error {
 	log.Infof("Received Vnf Delete: %+v", vnf)
+
+	if vnf.VnfName == "" {
+		return core.Errorf("Invalid Vnf name")
+	}
+
+	tenant := contivModel.FindTenant(vnf.TenantName)
+	if tenant == nil {
+		return core.Errorf("Tenant %s not found", vnf.TenantName)
+	}
+
+	// Delete the VNF object
+	err := master.DeleteVnf(vnf.VnfName, vnf.TenantName)
+	if err != nil {
+		log.Errorf("Error deleting Vnf object {%+v}. Err: %v", vnf.VnfName, err)
+		return err
+	}
+
+	modeldb.RemoveLink(&vnf.Links.Tenant, tenant)
+	modeldb.RemoveLinkSet(&tenant.LinkSets.Vnfs, vnf)
+
+	err = tenant.Write()
+	if err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -2146,38 +2173,51 @@ func (ac *APIController) VnfPolicyCreate(vnfPolicy *contivModel.VnfPolicy) error
 
 	if vnfPolicy.SourceUnit == "" {
 		return core.Errorf("Invalid Source unit")
-	} else if contivModel.FindEndpointGroup(vnfPolicy.SourceUnit) == nil {
+	}
+
+	srcEpgKey := vnfPolicy.TenantName + ":" + vnfPolicy.SourceUnit
+	srcEpg := contivModel.FindEndpointGroup(srcEpgKey)
+	if srcEpg == nil {
 		return core.Errorf("Source EPG not found")
 	}
 
 	if vnfPolicy.DestUnit == "" {
 		return core.Errorf("Invalid Destination unit")
-	} else if contivModel.FindEndpointGroup(vnfPolicy.DestUnit) == nil {
+	}
+
+	destEpgKey := vnfPolicy.TenantName + ":" + vnfPolicy.DestUnit
+	destEpg := contivModel.FindEndpointGroup(destEpgKey)
+	if destEpg == nil {
 		return core.Errorf("Dest EPG not found")
 	}
 
-	/* Get the state driver
-	stateDriver, err := utils.GetStateDriver()
+	vnfID := master.GetVnfID(vnfPolicy.TenantName, vnfPolicy.Vnf)
+
+	// Check if valid VNF is being referenced
+	vnf := contivModel.FindVnf(vnfID)
+	if vnf == nil {
+		log.Errorf("Error finding VNF %s", vnfID)
+		return core.Errorf("VNF: %s not found", vnfID)
+	}
+
+	// Trigger VnfPolicyDB update
+	err := master.CreateVnfPolicy(vnfPolicy)
+	if err != nil {
+		log.Errorf("Error adding VNF policy %s. Err: %s", vnfPolicy.VnfPolicyName, err)
+		return err
+	}
+
+	// Link the necessary objects
+	modeldb.AddLinkSet(&vnfPolicy.LinkSets.Vnf, vnf)
+	modeldb.AddLinkSet(&vnf.LinkSets.VnfPolicies, vnfPolicy)
+	modeldb.AddLinkSet(&srcEpg.LinkSets.VnfPolicies, vnfPolicy)
+	modeldb.AddLinkSet(&destEpg.LinkSets.VnfPolicies, vnfPolicy)
+
+	err = vnf.Write()
 	if err != nil {
 		return err
 	}
 
-		// Build service config
-		serviceIntentCfg := intent.ConfigServiceLB{
-			ServiceName: serviceCfg.ServiceName,
-			Tenant:      serviceCfg.TenantName,
-			Network:     serviceCfg.NetworkName,
-			IPAddress:   serviceCfg.IpAddress,
-		}
-		serviceIntentCfg.Ports = append(serviceIntentCfg.Ports, serviceCfg.Ports...)
-
-		// Add the service object
-		err = master.CreateServiceLB(stateDriver, &serviceIntentCfg)
-		if err != nil {
-			log.Errorf("Error creating service  {%+v}. Err: %v", serviceIntentCfg.ServiceName, err)
-			return err
-		}
-	*/
 	return nil
 }
 
@@ -2190,6 +2230,47 @@ func (ac *APIController) VnfPolicyUpdate(vnfPolicy, params *contivModel.VnfPolic
 // VnfPolicyDelete deletes a VNF policy
 func (ac *APIController) VnfPolicyDelete(vnfPolicy *contivModel.VnfPolicy) error {
 	log.Infof("Received Vnf Policy Delete: %+v", vnfPolicy)
+
+	tenant := contivModel.FindTenant(vnfPolicy.TenantName)
+	if tenant == nil {
+		return core.Errorf("Tenant %s not found", vnfPolicy.TenantName)
+	}
+
+	vnfID := master.GetVnfID(vnfPolicy.TenantName, vnfPolicy.Vnf)
+	vnf := contivModel.FindVnf(vnfID)
+	if vnf == nil {
+		return core.Errorf("VNF %s not found", vnfID)
+	}
+
+	srcEpgKey := vnfPolicy.TenantName + ":" + vnfPolicy.SourceUnit
+	srcEpg := contivModel.FindEndpointGroup(srcEpgKey)
+	if srcEpg == nil {
+		return core.Errorf("Source EPG not found")
+	}
+
+	destEpgKey := vnfPolicy.TenantName + ":" + vnfPolicy.DestUnit
+	destEpg := contivModel.FindEndpointGroup(destEpgKey)
+	if destEpg == nil {
+		return core.Errorf("Dest EPG not found")
+	}
+
+	// Trigger VnfPolicy delete
+	err := master.DeleteVnfPolicy(vnfPolicy)
+	if err != nil {
+		log.Errorf("Error deleting VNF policy %s. Err: %s", vnfPolicy.VnfPolicyName, err)
+		return err
+	}
+
+	// UnLink the necessary objects
+	modeldb.RemoveLinkSet(&vnfPolicy.LinkSets.Vnf, vnf)
+	modeldb.RemoveLinkSet(&vnf.LinkSets.VnfPolicies, vnfPolicy)
+	modeldb.RemoveLinkSet(&srcEpg.LinkSets.VnfPolicies, vnfPolicy)
+	modeldb.RemoveLinkSet(&destEpg.LinkSets.VnfPolicies, vnfPolicy)
+
+	vnf.Write()
+	srcEpg.Write()
+	destEpg.Write()
+
 	return nil
 }
 

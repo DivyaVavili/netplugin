@@ -327,6 +327,18 @@ func processSvcProviderUpdEvent(netPlugin *plugin.NetPlugin, svcProvider *master
 	return nil
 }
 
+func processVnfEvent(netPlugin *plugin.NetPlugin, vnfCfg *mastercfg.CfgVnfState, isDelete bool) error {
+	log.Infof("Processing VNF events for %+v", vnfCfg)
+
+	return nil
+}
+
+func processVnfInstanceEvent(netplugin *plugin.NetPlugin, vnfInstance *mastercfg.VnfInstance, isDelete bool) error {
+	log.Infof("Processing VNF instance events for %+v", vnfInstance)
+
+	return nil
+}
+
 func processStateEvent(netPlugin *plugin.NetPlugin, opts core.InstanceInfo, rsps chan core.WatchState) {
 	for {
 		// block on change notifications
@@ -463,6 +475,25 @@ func handleGlobalCfgEvents(netPlugin *plugin.NetPlugin, opts core.InstanceInfo, 
 	rsps := make(chan core.WatchState)
 	go processStateEvent(netPlugin, opts, rsps)
 	cfg := mastercfg.GlobConfig{}
+	cfg.StateDriver = netPlugin.StateDriver
+	recvErr <- cfg.WatchAll(rsps)
+	return
+}
+
+func handleVnfEvents(netPlugin *plugin.NetPlugin, opts core.InstanceInfo, recvErr chan error) {
+
+	rsps := make(chan core.WatchState)
+	go processStateEvent(netPlugin, opts, rsps)
+	cfg := mastercfg.CfgVnfState{}
+	cfg.StateDriver = netPlugin.StateDriver
+	recvErr <- cfg.WatchAll(rsps)
+	return
+}
+
+func handleVnfInstanceEvents(netPlugin *plugin.NetPlugin, opts core.InstanceInfo, recvErr chan error) {
+	rsps := make(chan core.WatchState)
+	go processStateEvent(netPlugin, opts, rsps)
+	cfg := mastercfg.VnfInstance{}
 	cfg.StateDriver = netPlugin.StateDriver
 	recvErr <- cfg.WatchAll(rsps)
 	return

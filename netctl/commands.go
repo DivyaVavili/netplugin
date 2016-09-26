@@ -656,7 +656,7 @@ var Commands = []cli.Command{
 						Name:  "vtep-ip, v",
 						Usage: "VTEP IP of physical appliance",
 					},
-					cli.StringFlag{
+					cli.StringSliceFlag{
 						Name:  "vnf-label, l",
 						Usage: "VNF Label(s)",
 					},

@@ -396,3 +396,8 @@ func IsAciConfigured() (res bool, err error) {
 
 	return true, nil
 }
+
+// RequireVlanAllocation returns a boolean value indicating if per-epg-vlan allocation is required. TODO: Make it configuration basis and include ACI mode in this?
+func RequireVlanAllocation() bool {
+	return true
+}
