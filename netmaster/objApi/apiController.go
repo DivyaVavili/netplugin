@@ -1269,12 +1269,6 @@ func (ac *APIController) PolicyUpdate(policy, params *contivModel.Policy) error 
 	return nil
 }
 
-// PolicyGetOper gets policy
-func (ac *APIController) PolicyGetOper(policy *contivModel.PolicyInspect) error {
-	log.Infof("Received PolicyGetOper for %+v", policy)
-	return nil
-}
-
 // PolicyDelete deletes policy
 func (ac *APIController) PolicyDelete(policy *contivModel.Policy) error {
 	log.Infof("Received PolicyDelete: %+v", policy)
@@ -1659,12 +1653,6 @@ func (ac *APIController) TenantUpdate(tenant, params *contivModel.Tenant) error 
 	log.Infof("Received TenantUpdate: %+v, params: %+v", tenant, params)
 
 	return core.Errorf("Cant change tenant parameters after its created")
-}
-
-// TenantGetOper gets policy
-func (ac *APIController) TenantGetOper(tenant *contivModel.TenantInspect) error {
-	log.Infof("Received TenantGetOper for %+v", tenant)
-	return nil
 }
 
 // TenantDelete deletes a tenant
