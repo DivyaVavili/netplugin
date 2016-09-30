@@ -32,12 +32,6 @@
 					"title": "Traffic action to take",
 					"showSummary": true
 				},
-				"group": {
-					"type": "string",
-					"format": "^(([a-zA-Z0-9]|[a-zA-Z0-9][a-zA-Z0-9\\\\-]*[a-zA-Z0-9])\\\\.)*([A-Za-z0-9]|[A-Za-z0-9][A-Za-z0-9\\\\-]*[A-Za-z0-9])$",
-					"title": "Endpoint Group Name",
-					"showSummary": true
-				},
 				"vnfLabels": {
 					"type": "array",
 					"title": "Labels identifying VNFs (key=value pair)",
@@ -49,12 +43,6 @@
 					"format": "^(vlan|vxlan)$",
 					"title": "Encapsulation",
 					"showSummary": true
-				},
-				"pktTag": {
-					"type": "int",
-					"title": "Vlan/Vxlan Tag",
-					"showSummary": true,
-					"max": 16777216
 				},
 				"vtepIP": {
 					"type": "string",

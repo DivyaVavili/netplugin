@@ -410,8 +410,6 @@ type Vnf struct {
 	Key string `json:"key,omitempty"`
 
 	Encap         string   `json:"encap,omitempty"`         // Encapsulation
-	Group         string   `json:"group,omitempty"`         // Endpoint Group Name
-	PktTag        int      `json:"pktTag,omitempty"`        // Vlan/Vxlan Tag
 	TenantName    string   `json:"tenantName,omitempty"`    // Tenant Name
 	TrafficAction string   `json:"trafficAction,omitempty"` // Traffic action to take
 	VnfLabels     []string `json:"vnfLabels,omitempty"`
@@ -4683,15 +4681,6 @@ func ValidateVnf(obj *Vnf) error {
 	encapMatch := regexp.MustCompile("^(vlan|vxlan)$")
 	if encapMatch.MatchString(obj.Encap) == false {
 		return errors.New("encap string invalid format")
-	}
-
-	groupMatch := regexp.MustCompile("^(([a-zA-Z0-9]|[a-zA-Z0-9][a-zA-Z0-9\\-]*[a-zA-Z0-9])\\.)*([A-Za-z0-9]|[A-Za-z0-9][A-Za-z0-9\\-]*[A-Za-z0-9])$")
-	if groupMatch.MatchString(obj.Group) == false {
-		return errors.New("group string invalid format")
-	}
-
-	if obj.PktTag > 1.6777216e+07 {
-		return errors.New("pktTag Value Out of bound")
 	}
 
 	if len(obj.TenantName) > 64 {

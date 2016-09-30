@@ -770,7 +770,7 @@ var VnfSummaryView = React.createClass({
 				<ModalTrigger modal={<VnfModalView vnf={ vnf }/>}>
 					<tr key={ vnf.key } className="info">
 						
-						         
+						       
 					</tr>
 				</ModalTrigger>
 			);
@@ -782,7 +782,7 @@ var VnfSummaryView = React.createClass({
 				<thead>
 					<tr>
 					
-					         
+					       
 					</tr>
 				</thead>
 				<tbody>
@@ -803,10 +803,6 @@ var VnfModalView = React.createClass({
 			
 			
 				<Input type='text' label='Encapsulation' ref='encap' defaultValue={obj.encap} placeholder='Encapsulation' />
-			
-				<Input type='text' label='Endpoint Group Name' ref='group' defaultValue={obj.group} placeholder='Endpoint Group Name' />
-			
-				<Input type='text' label='Vlan/Vxlan Tag' ref='pktTag' defaultValue={obj.pktTag} placeholder='Vlan/Vxlan Tag' />
 			
 				<Input type='text' label='Tenant Name' ref='tenantName' defaultValue={obj.tenantName} placeholder='Tenant Name' />
 			

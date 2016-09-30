@@ -597,8 +597,6 @@ class objmodelClient:
 
 	    jdata = json.dumps({ 
 			"encap": obj.encap, 
-			"group": obj.group, 
-			"pktTag": obj.pktTag, 
 			"tenantName": obj.tenantName, 
 			"trafficAction": obj.trafficAction, 
 			"vnfLabels": obj.vnfLabels, 

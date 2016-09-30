@@ -536,8 +536,6 @@ type Vnf struct {
 	Key string `json:"key,omitempty"`
 
 	Encap         string   `json:"encap,omitempty"`         // Encapsulation
-	Group         string   `json:"group,omitempty"`         // Endpoint Group Name
-	PktTag        int      `json:"pktTag,omitempty"`        // Vlan/Vxlan Tag
 	TenantName    string   `json:"tenantName,omitempty"`    // Tenant Name
 	TrafficAction string   `json:"trafficAction,omitempty"` // Traffic action to take
 	VnfLabels     []string `json:"vnfLabels,omitempty"`
