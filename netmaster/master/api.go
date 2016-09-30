@@ -404,10 +404,7 @@ func UpdateEndpointHandler(w http.ResponseWriter, r *http.Request, vars map[stri
 		log.Infof("Num labels in EP update request: %d", len(epUpdReq.Labels))
 		// If there are no labels, we are done with procesing the update
 		if len(epUpdReq.Labels) == 0 {
-			epUpdResp := &UpdateEndpointResponse{
-				IPAddress: epUpdReq.IPAddress,
-			}
-			return epUpdResp, nil
+			return getUpdateEpResponse(epUpdReq.IPAddress), nil
 		}
 
 		/* Check if the endpoint has label
@@ -428,7 +425,7 @@ func UpdateEndpointHandler(w http.ResponseWriter, r *http.Request, vars map[stri
 					log.Infof("Matching vnf label: %s against container label:%s", val, v)
 					// Matched VNF instance
 					if len(vnf.VnfLabels) == matchCount {
-						vnfInstanceID := GetVnfInstanceID(vnf.Tenant, vnf.VnfName, epUpdReq.ContainerName)
+						vnfInstanceID := GetVnfInstanceID(vnf.Tenant, epUpdReq.ContainerName)
 						vnfInstance := &mastercfg.VnfInstance{}
 						vnfInstance.VnfName = vnf.VnfName
 						vnfInstance.InstanceName = vnfInstanceID
@@ -451,6 +448,8 @@ func UpdateEndpointHandler(w http.ResponseWriter, r *http.Request, vars map[stri
 						}
 						vnfState.VnfInstances[vnfInstanceID] = vnfInstance
 						vnfState.Write()
+
+						return getUpdateEpResponse(epUpdReq.IPAddress), nil
 					}
 				}
 			}
@@ -512,52 +511,64 @@ func UpdateEndpointHandler(w http.ResponseWriter, r *http.Request, vars map[stri
 		mastercfg.SvcMutex.Unlock()
 
 	} else if epUpdReq.Event == "die" {
-		//Received a container die event. If it was a service provider -
-		//clear the provider db and the service db and change the etcd state
+		// Received a container die event.
+		// Update necessary VNF or service state
 
-		providerDbID := epUpdReq.ContainerID
-		if providerDbID == "" {
+		if epUpdReq.ContainerID == "" {
 			return nil, fmt.Errorf("Invalid containerID in UpdateEndpointRequest:(nil)")
 		}
 
-		mastercfg.SvcMutex.Lock()
-		provider := mastercfg.ProviderDb[providerDbID]
-		if provider == nil {
-			mastercfg.SvcMutex.Unlock()
-			// It is not a provider . Ignore event
-			return nil, nil
-		}
+		vnfInstanceID := GetVnfInstanceID(epUpdReq.Tenant, epUpdReq.ContainerName)
+		if vnfInstance := mastercfg.VnfInstanceDb[vnfInstanceID]; vnfInstance != nil {
+			vnfID := GetVnfID(epUpdReq.Tenant, vnfInstance.VnfName)
+			log.Infof("VNF map: %+v, vnfID: %s, vnfInstanceID: %s", mastercfg.VnfDb, vnfID, vnfInstanceID)
+			delete(mastercfg.VnfDb[vnfID].VnfInstances, vnfInstanceID)
+		} else {
+			providerDbID := epUpdReq.ContainerID
 
-		for _, serviceID := range provider.Services {
-			service := mastercfg.ServiceLBDb[serviceID]
-			providerID := getProviderID(provider)
-			if providerID == "" {
+			mastercfg.SvcMutex.Lock()
+			provider := mastercfg.ProviderDb[providerDbID]
+			if provider == nil {
 				mastercfg.SvcMutex.Unlock()
-				return nil, fmt.Errorf("Invalid ProviderID from providerInfo:{%v}", provider)
+				// It is not a provider . Ignore event
+				return nil, nil
 			}
-			if service.Providers[providerID] != nil {
-				delete(service.Providers, providerID)
 
-				serviceLbState := &mastercfg.CfgServiceLBState{}
-				serviceLbState.StateDriver = stateDriver
-				err = serviceLbState.Read(serviceID)
-				if err != nil {
+			for _, serviceID := range provider.Services {
+				service := mastercfg.ServiceLBDb[serviceID]
+				providerID := getProviderID(provider)
+				if providerID == "" {
 					mastercfg.SvcMutex.Unlock()
-					return nil, err
+					return nil, fmt.Errorf("Invalid ProviderID from providerInfo:{%v}", provider)
 				}
-				delete(serviceLbState.Providers, providerID)
-				serviceLbState.Write()
-				delete(mastercfg.ProviderDb, providerDbID)
-				SvcProviderUpdate(serviceID, false)
+				if service.Providers[providerID] != nil {
+					delete(service.Providers, providerID)
 
+					serviceLbState := &mastercfg.CfgServiceLBState{}
+					serviceLbState.StateDriver = stateDriver
+					err = serviceLbState.Read(serviceID)
+					if err != nil {
+						mastercfg.SvcMutex.Unlock()
+						return nil, err
+					}
+					delete(serviceLbState.Providers, providerID)
+					serviceLbState.Write()
+					delete(mastercfg.ProviderDb, providerDbID)
+					SvcProviderUpdate(serviceID, false)
+
+				}
 			}
+			mastercfg.SvcMutex.Unlock()
 		}
-		mastercfg.SvcMutex.Unlock()
 
 	}
 
+	return getUpdateEpResponse(epUpdReq.IPAddress), nil
+}
+
+func getUpdateEpResponse(ipAddr string) *UpdateEndpointResponse {
 	epUpdResp := &UpdateEndpointResponse{
-		IPAddress: epUpdReq.IPAddress,
+		IPAddress: ipAddr,
 	}
-	return epUpdResp, nil
+	return epUpdResp
 }

@@ -88,8 +88,6 @@ type ConfigVNF struct {
 	VnfLabels     map[string]string
 	TrafficAction string
 	VnfType       string
-	Group         string
-	PktTag        int
 	VtepIP        string
 }
 

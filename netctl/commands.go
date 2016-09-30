@@ -640,17 +640,9 @@ var Commands = []cli.Command{
 						Value: "firewall",
 					},
 					cli.StringFlag{
-						Name:  "group, g",
-						Usage: "Endpoint group",
-					},
-					cli.StringFlag{
 						Name:  "encap, e",
 						Usage: "Encap type (vlan or vxlan)",
 						Value: "vxlan",
-					},
-					cli.StringFlag{
-						Name:  "pkt-tag, p",
-						Usage: "Packet tag (Vlan/Vxlan ids)",
 					},
 					cli.StringFlag{
 						Name:  "vtep-ip, v",

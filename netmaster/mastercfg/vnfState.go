@@ -34,8 +34,8 @@ const (
 // VnfInfo holds service information
 type VnfInfo struct {
 	VnfName      string                  // VNF name
+	VnfType      string                  // VNF Type
 	Tenant       string                  // Tenant name
-	Group        string                  // VNF network
 	VnfLabels    map[string]string       // VNF labels associated with a VNF
 	VnfInstances map[string]*VnfInstance // map of providers for a service keyed by provider ip
 }
@@ -56,7 +56,6 @@ type CfgVnfState struct {
 	Tenant        string                  `json:"tenantName"`
 	TrafficAction string                  `json:"trafficAction"`
 	VnfType       string                  `json:"vnfType"`
-	Group         string                  `json:"group"`
 	VnfLabels     map[string]string       `json:"vnfLabels"`
 	VtepIP        string                  `json:"vtepIP"`
 	VnfInstances  map[string]*VnfInstance `json:"vnfInstances"`

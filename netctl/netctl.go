@@ -1396,8 +1396,6 @@ func createVnf(ctx *cli.Context) error {
 	tenant := ctx.String("tenant")
 	vnfName := ctx.Args()[0]
 	encap := ctx.String("encap")
-	group := ctx.String("group")
-	pktTag := ctx.Int("pkt-tag")
 	vtepIP := ctx.String("vtep-ip")
 	vnfType := ctx.String("type")
 	vnfLabels := ctx.StringSlice("vnf-label")
@@ -1408,9 +1406,7 @@ func createVnf(ctx *cli.Context) error {
 		TenantName:    tenant,
 		VnfType:       vnfType,
 		TrafficAction: trafficAction,
-		Group:         group,
 		Encap:         encap,
-		PktTag:        pktTag,
 		VtepIP:        vtepIP,
 	}
 	vnf.VnfLabels = append(vnf.VnfLabels, vnfLabels...)
@@ -1492,18 +1488,16 @@ func listVnfs(ctx *cli.Context) error {
 	} else {
 		writer := tabwriter.NewWriter(os.Stdout, 0, 2, 2, ' ', 0)
 		defer writer.Flush()
-		writer.Write([]byte("Tenant\tVNF Name\tType\tGroup\tEncap type\tPkt tag\tVtep IP\n"))
-		writer.Write([]byte("------\t--------\t----\t-----\t----------\t-------\t-------\n"))
+		writer.Write([]byte("Tenant\tVNF Name\tType\tEncap type\tVtep IP\n"))
+		writer.Write([]byte("------\t--------\t----\t----------\t-------\n"))
 
 		for _, vnf := range filtered {
 			writer.Write(
-				[]byte(fmt.Sprintf("%v\t%v\t%v\t%v\t%v\t%v\t%v\n",
+				[]byte(fmt.Sprintf("%v\t%v\t%v\t%v\t%v\n",
 					vnf.TenantName,
 					vnf.VnfName,
 					vnf.VnfType,
-					vnf.Group,
 					vnf.Encap,
-					vnf.PktTag,
 					vnf.VtepIP,
 				)))
 		}

@@ -31,8 +31,8 @@ func CreateVNF(vnfCfg *intent.ConfigVNF) error {
 
 	vnfInfo := &mastercfg.VnfInfo{
 		VnfName: vnfCfg.VnfName,
+		VnfType: vnfCfg.VnfType,
 		Tenant:  vnfCfg.TenantName,
-		Group:   vnfCfg.Group,
 	}
 	vnfInfo.VnfLabels = make(map[string]string)
 	vnfInfo.VnfInstances = make(map[string]*mastercfg.VnfInstance)
@@ -56,7 +56,6 @@ func CreateVNF(vnfCfg *intent.ConfigVNF) error {
 	vnfState.Tenant = vnfCfg.TenantName
 	vnfState.TrafficAction = vnfCfg.TrafficAction
 	vnfState.VnfType = vnfCfg.VnfType
-	vnfState.Group = vnfCfg.Group
 	vnfState.VtepIP = vnfCfg.VtepIP
 	vnfState.VnfLabels = make(map[string]string)
 	for k, v := range vnfCfg.VnfLabels {
@@ -110,7 +109,7 @@ func GetVnfID(tenantName string, vnfName string) string {
 }
 
 // GetVnfInstanceID returns the VNF instance ID
-func GetVnfInstanceID(tenantName, vnfName, contName string) string {
-	return tenantName + ":" + vnfName + ":" + contName
+func GetVnfInstanceID(tenantName, contName string) string {
+	return tenantName + ":" + contName
 
 }

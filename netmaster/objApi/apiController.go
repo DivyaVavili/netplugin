@@ -2073,8 +2073,6 @@ func (ac *APIController) VnfCreate(vnf *contivModel.Vnf) error {
 		TenantName:    vnf.TenantName,
 		TrafficAction: vnf.TrafficAction,
 		VnfType:       vnf.VnfType,
-		Group:         vnf.Group,
-		PktTag:        vnf.PktTag,
 		VtepIP:        vnf.VtepIP,
 	}
 
