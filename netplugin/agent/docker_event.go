@@ -34,7 +34,8 @@ func handleDockerEvents(event *dockerclient.Event, ec chan error, args ...interf
 
 	log.Debugf("Received Docker event: {%#v}\n", *event)
 	endpointUpdReq := &master.UpdateEndpointRequest{}
-	switch event.Status {
+
+	switch event.Action {
 	case "start":
 		defaultHeaders := map[string]string{"User-Agent": "engine-api-cli-1.0"}
 		cli, err := client.NewClient("unix:///var/run/docker.sock", "v1.21", nil, defaultHeaders)
@@ -53,13 +54,13 @@ func handleDockerEvents(event *dockerclient.Event, ec chan error, args ...interf
 			labelMap := getLabelsFromContainerInspect(&containerInfo)
 			containerTenant := getTenantFromContainerInspect(&containerInfo)
 			networkName, ipAddress, err := getEpNetworkInfoFromContainerInspect(&containerInfo)
+			macAddress := getMacAddressFromContainerInspect(&containerInfo)
 			if err != nil {
 				log.Errorf("Error getting container network info for %v.Err:%s", event.ID, err)
 			}
 			endpoint := getEndpointFromContainerInspect(&containerInfo)
 
 			if ipAddress != "" {
-				//Create provider info
 				endpointUpdReq.IPAddress = ipAddress
 				endpointUpdReq.ContainerID = event.ID
 				endpointUpdReq.Tenant = containerTenant
@@ -68,6 +69,7 @@ func handleDockerEvents(event *dockerclient.Event, ec chan error, args ...interf
 				endpointUpdReq.EndpointID = endpoint
 				endpointUpdReq.ContainerName = containerInfo.Name
 				endpointUpdReq.Labels = make(map[string]string)
+				endpointUpdReq.MacAddress = macAddress
 
 				for k, v := range labelMap {
 					endpointUpdReq.Labels[k] = v
@@ -165,4 +167,15 @@ func getEndpointFromContainerInspect(containerInfo *types.ContainerJSON) string 
 	}
 	return endpointID
 
+}
+
+// getMacAddressFromContainerInspect inspects the mac address from containerinfo returned by dockerclient
+func getMacAddressFromContainerInspect(containerInfo *types.ContainerJSON) string {
+	var macAddress string
+	if containerInfo != nil && containerInfo.NetworkSettings != nil {
+		for _, endpoint := range containerInfo.NetworkSettings.Networks {
+			macAddress = endpoint.MacAddress
+		}
+	}
+	return macAddress
 }

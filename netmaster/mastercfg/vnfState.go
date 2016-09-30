@@ -41,7 +41,10 @@ type VnfInfo struct {
 }
 
 // VnfDb is map of all VNFs
-var VnfDb = make(map[string]*VnfInfo) // DB for all VNFs keyed by vnf.tenant
+var VnfDb = make(map[string]*VnfInfo)
+
+// VnfInstanceDb is map of all VNF Instances
+var VnfInstanceDb = make(map[string]*VnfInstance)
 
 // VnfMutex is mutex for vnf transaction
 var VnfMutex sync.RWMutex
@@ -59,15 +62,8 @@ type CfgVnfState struct {
 	VnfInstances  map[string]*VnfInstance `json:"vnfInstances"`
 }
 
-//VnfInstance has maintains list of all VNF instnces
+// VnfInstance maintains info about individual VNF instances
 type VnfInstance struct {
-	core.CommonState
-	VnfName      string
-	VnfInstances []string
-}
-
-// VnfInstanceInfo maintains info about individual VNF instances
-type VnfInstanceInfo struct {
 	VnfName      string
 	InstanceName string
 	Tenant       string
@@ -75,6 +71,14 @@ type VnfInstanceInfo struct {
 	ContainerID  string
 	EpID         string
 }
+
+/* VnfInstancesInfo has maintains list of all VNF instances
+type VnfInstancesInfo struct {
+	core.CommonState
+	VnfName      string
+	VnfInstances []string
+}
+*/
 
 // Write the state
 func (s *CfgVnfState) Write() error {
@@ -108,34 +112,36 @@ func (s *CfgVnfState) WatchAll(rsps chan core.WatchState) error {
 		rsps)
 }
 
+/*
 // Write the state
-func (s *VnfInstance) Write() error {
+func (s *VnfInstancesInfo) Write() error {
 	key := fmt.Sprintf(vnfConfigPath, s.ID)
 	err := s.StateDriver.WriteState(key, s, json.Marshal)
 	return err
 }
 
 // Read the state in for a given ID.
-func (s *VnfInstance) Read(id string) error {
+func (s *VnfInstancesInfo) Read(id string) error {
 	key := fmt.Sprintf(vnfConfigPath, id)
 	err := s.StateDriver.ReadState(key, s, json.Unmarshal)
 	return err
 }
 
 // ReadAll reads all the state for master bgp configurations and returns it.
-func (s *VnfInstance) ReadAll() ([]core.State, error) {
+func (s *VnfInstancesInfo) ReadAll() ([]core.State, error) {
 	return s.StateDriver.ReadAllState(vnfInstancePathPrefix, s, json.Unmarshal)
 }
 
 // Clear removes the configuration from the state store.
-func (s *VnfInstance) Clear() error {
+func (s *VnfInstancesInfo) Clear() error {
 	key := fmt.Sprintf(vnfConfigPath, s.ID)
 	err := s.StateDriver.ClearState(key)
 	return err
 }
 
 // WatchAll state transitions and send them through the channel.
-func (s *VnfInstance) WatchAll(rsps chan core.WatchState) error {
+func (s *VnfInstancesInfo) WatchAll(rsps chan core.WatchState) error {
 	return s.StateDriver.WatchAllState(vnfInstancePathPrefix, s, json.Unmarshal,
 		rsps)
 }
+*/

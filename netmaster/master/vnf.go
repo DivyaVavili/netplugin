@@ -27,6 +27,22 @@ func CreateVNF(vnfCfg *intent.ConfigVNF) error {
 
 	log.Infof("Received create VNF config {%v}", vnfCfg)
 
+	vnfID := GetVnfID(vnfCfg.TenantName, vnfCfg.VnfName)
+
+	vnfInfo := &mastercfg.VnfInfo{
+		VnfName: vnfCfg.VnfName,
+		Tenant:  vnfCfg.TenantName,
+		Group:   vnfCfg.Group,
+	}
+	vnfInfo.VnfLabels = make(map[string]string)
+	vnfInfo.VnfInstances = make(map[string]*mastercfg.VnfInstance)
+
+	for k, v := range vnfCfg.VnfLabels {
+		vnfInfo.VnfLabels[k] = v
+	}
+
+	mastercfg.VnfDb[vnfID] = vnfInfo
+
 	// Get the state driver
 	stateDriver, err := utils.GetStateDriver()
 	if err != nil {
@@ -46,6 +62,7 @@ func CreateVNF(vnfCfg *intent.ConfigVNF) error {
 	for k, v := range vnfCfg.VnfLabels {
 		vnfState.VnfLabels[k] = v
 	}
+	vnfState.VnfInstances = make(map[string]*mastercfg.VnfInstance)
 
 	err = vnfState.Write()
 
@@ -90,4 +107,10 @@ func DeleteVnf(vnfName string, tenantName string) error {
 // GetVnfID returns VNF ID for state lookup
 func GetVnfID(tenantName string, vnfName string) string {
 	return tenantName + ":" + vnfName
+}
+
+// GetVnfInstanceID returns the VNF instance ID
+func GetVnfInstanceID(tenantName, vnfName, contName string) string {
+	return tenantName + ":" + vnfName + ":" + contName
+
 }

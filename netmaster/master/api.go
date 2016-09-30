@@ -74,9 +74,10 @@ type DeleteEndpointRequest struct {
 
 //UpdateEndpointRequest has the update endpoint request from netplugin
 type UpdateEndpointRequest struct {
-	IPAddress     string            // provider IP
-	ContainerID   string            // container id
-	Labels        map[string]string // lables
+	IPAddress     string
+	MacAddress    string
+	ContainerID   string
+	Labels        map[string]string
 	Tenant        string
 	Network       string
 	Event         string
@@ -86,7 +87,7 @@ type UpdateEndpointRequest struct {
 
 //UpdateEndpointResponse is service provider update request from netplugin
 type UpdateEndpointResponse struct {
-	IPAddress string // provider IP
+	IPAddress string
 }
 
 // DeleteEndpointResponse is the delete endpoint response from netmaster
@@ -347,9 +348,9 @@ func UpdateEndpointHandler(w http.ResponseWriter, r *http.Request, vars map[stri
 	}
 
 	if epUpdReq.Event == "start" {
-		//Received container start event from netplugin. Check if the Provider
-		//matches any service and perform service provider update if there is a matching
-		//service.
+		// Received container start event from netplugin.
+		// Check if the container matches any service or VNF definition
+		// and perform necessary actions as needed
 
 		epCfg := &mastercfg.CfgEndpointState{}
 		epCfg.StateDriver = stateDriver
@@ -382,23 +383,13 @@ func UpdateEndpointHandler(w http.ResponseWriter, r *http.Request, vars map[stri
 			return nil, err
 		}
 
-		provider := &mastercfg.Provider{}
-		provider.IPAddress = epUpdReq.IPAddress
-		provider.Tenant = epUpdReq.Tenant
-		provider.Network = epUpdReq.Network
-		provider.ContainerID = epUpdReq.ContainerID
-		provider.Labels = make(map[string]string)
-
 		if epCfg.Labels == nil {
 			//endpoint cfg doesnt have labels
 			epCfg.Labels = make(map[string]string)
+			for k, v := range epUpdReq.Labels {
+				epCfg.Labels[k] = v
+			}
 		}
-
-		for k, v := range epUpdReq.Labels {
-			provider.Labels[k] = v
-			epCfg.Labels[k] = v
-		}
-		provider.EpIDKey = epCfg.ID
 		//maintain the containerId in endpointstat for recovery
 		epCfg.ContainerID = epUpdReq.ContainerID
 		epCfg.ContainerName = epUpdReq.ContainerName
@@ -409,15 +400,64 @@ func UpdateEndpointHandler(w http.ResponseWriter, r *http.Request, vars map[stri
 			return nil, err
 		}
 
-		providerID := getProviderID(provider)
-		providerDbID := getProviderDbID(provider)
-		if providerID == "" || providerDbID == "" {
-			return nil, fmt.Errorf("Invalid ProviderID from providerInfo:{%v}", provider)
+		log.Infof("epUpdReq: %+v mastercfg.VnfDb: %+v", epUpdReq, mastercfg.VnfDb)
+		log.Infof("Num labels in EP update request: %d", len(epUpdReq.Labels))
+		// If there are no labels, we are done with procesing the update
+		if len(epUpdReq.Labels) == 0 {
+			epUpdResp := &UpdateEndpointResponse{
+				IPAddress: epUpdReq.IPAddress,
+			}
+			return epUpdResp, nil
 		}
 
-		//update provider db
+		/* Check if the endpoint has label
+		 * If so, process the labels to check if it's a VNF instance
+		 * or a general provider
+		 */
+
+		for vnfID, vnf := range mastercfg.VnfDb {
+			matchCount := 0
+
+			if vnf.Tenant == epUpdReq.Tenant {
+				var val string
+				for k, v := range epUpdReq.Labels {
+					if val = vnf.VnfLabels[k]; val == v {
+						matchCount++
+					}
+
+					log.Infof("Matching vnf label: %s against container label:%s", val, v)
+					// Matched VNF instance
+					if len(vnf.VnfLabels) == matchCount {
+						vnfInstanceID := GetVnfInstanceID(vnf.Tenant, vnf.VnfName, epUpdReq.ContainerName)
+						vnfInstance := &mastercfg.VnfInstance{}
+						vnfInstance.VnfName = vnf.VnfName
+						vnfInstance.InstanceName = vnfInstanceID
+						vnfInstance.Tenant = epUpdReq.Tenant
+						vnfInstance.ContainerID = epUpdReq.ContainerID
+						vnfInstance.EpID = epUpdReq.EndpointID
+						vnfInstance.Labels = make(map[string]string)
+						for k, v := range epUpdReq.Labels {
+							vnfInstance.Labels[k] = v
+						}
+
+						log.Infof("EP Update request. VNF labels matched. vnfID: %+v, vnfInstanceID: %+v", vnfID, vnfInstanceID)
+						mastercfg.VnfDb[vnfID].VnfInstances[vnfInstanceID] = vnfInstance
+						vnfState := &mastercfg.CfgVnfState{}
+						vnfState.StateDriver = stateDriver
+						vnfStateID := GetVnfID(vnf.Tenant, vnf.VnfName)
+						err = vnfState.Read(vnfStateID)
+						if err != nil {
+							return nil, err
+						}
+						vnfState.VnfInstances[vnfInstanceID] = vnfInstance
+						vnfState.Write()
+					}
+				}
+			}
+		}
+
+		//Check and update provider db
 		mastercfg.SvcMutex.Lock()
-		mastercfg.ProviderDb[providerDbID] = provider
 
 		for serviceID, service := range mastercfg.ServiceLBDb {
 			count := 0
@@ -428,6 +468,25 @@ func UpdateEndpointHandler(w http.ResponseWriter, r *http.Request, vars map[stri
 					}
 
 					if count == len(service.Selectors) {
+						provider := &mastercfg.Provider{}
+						provider.IPAddress = epUpdReq.IPAddress
+						provider.Tenant = epUpdReq.Tenant
+						provider.Network = epUpdReq.Network
+						provider.ContainerID = epUpdReq.ContainerID
+						provider.Labels = make(map[string]string)
+						for k, v := range epUpdReq.Labels {
+							provider.Labels[k] = v
+						}
+
+						provider.EpIDKey = epCfg.ID
+
+						providerID := getProviderID(provider)
+						providerDbID := getProviderDbID(provider)
+						if providerID == "" || providerDbID == "" {
+							return nil, fmt.Errorf("Invalid ProviderID from providerInfo:{%v}", provider)
+						}
+
+						mastercfg.ProviderDb[providerDbID] = provider
 						//Container corresponds to the service since it
 						//matches all service Selectors
 						mastercfg.ProviderDb[providerDbID].Services =

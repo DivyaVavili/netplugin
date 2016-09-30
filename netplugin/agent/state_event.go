@@ -333,12 +333,13 @@ func processVnfEvent(netPlugin *plugin.NetPlugin, vnfCfg *mastercfg.CfgVnfState,
 	return nil
 }
 
+/*
 func processVnfInstanceEvent(netplugin *plugin.NetPlugin, vnfInstance *mastercfg.VnfInstance, isDelete bool) error {
 	log.Infof("Processing VNF instance events for %+v", vnfInstance)
 
 	return nil
 }
-
+*/
 func processStateEvent(netPlugin *plugin.NetPlugin, opts core.InstanceInfo, rsps chan core.WatchState) {
 	for {
 		// block on change notifications
@@ -490,6 +491,7 @@ func handleVnfEvents(netPlugin *plugin.NetPlugin, opts core.InstanceInfo, recvEr
 	return
 }
 
+/*
 func handleVnfInstanceEvents(netPlugin *plugin.NetPlugin, opts core.InstanceInfo, recvErr chan error) {
 	rsps := make(chan core.WatchState)
 	go processStateEvent(netPlugin, opts, rsps)
@@ -497,4 +499,4 @@ func handleVnfInstanceEvents(netPlugin *plugin.NetPlugin, opts core.InstanceInfo
 	cfg.StateDriver = netPlugin.StateDriver
 	recvErr <- cfg.WatchAll(rsps)
 	return
-}
+}*/

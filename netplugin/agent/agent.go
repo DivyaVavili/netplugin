@@ -183,19 +183,19 @@ func (ag *Agent) ProcessCurrentState() error {
 			processVnfEvent(ag.netPlugin, vnf, false)
 		}
 	}
-
-	readVnfInstances := &mastercfg.VnfInstance{}
-	readVnfInstances.StateDriver = ag.netPlugin.StateDriver
-	vnfInstances, err := readVnfInstances.ReadAll()
-	if err == nil {
-		for idx, instance := range vnfInstances {
-			vnfInstance := instance.(*mastercfg.VnfInstance)
-			log.Infof("read vnf instance[%d] %s , populating state \n", idx,
-				vnfInstance.VnfName)
-			processVnfInstanceEvent(ag.netPlugin, vnfInstance, false)
+	/*
+		readVnfInstances := &mastercfg.VnfInstance{}
+		readVnfInstances.StateDriver = ag.netPlugin.StateDriver
+		vnfInstances, err := readVnfInstances.ReadAll()
+		if err == nil {
+			for idx, instance := range vnfInstances {
+				vnfInstance := instance.(*mastercfg.VnfInstance)
+				log.Infof("read vnf instance[%d] %s , populating state \n", idx,
+					vnfInstance.VnfName)
+				processVnfInstanceEvent(ag.netPlugin, vnfInstance, false)
+			}
 		}
-	}
-
+	*/
 	return nil
 }
 
@@ -234,7 +234,7 @@ func (ag *Agent) HandleEvents() error {
 
 	go handleVnfEvents(ag.netPlugin, opts, recvErr)
 
-	go handleVnfInstanceEvents(ag.netPlugin, opts, recvErr)
+	//go handleVnfInstanceEvents(ag.netPlugin, opts, recvErr)
 
 	if ag.pluginConfig.Instance.PluginMode == "docker" {
 		// watch for docker events
