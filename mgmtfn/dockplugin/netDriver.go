@@ -19,6 +19,8 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	//	"reflect"
+	//"strconv"
 	"strings"
 
 	log "github.com/Sirupsen/logrus"
@@ -30,6 +32,8 @@ import (
 	"github.com/contiv/netplugin/netplugin/cluster"
 	"github.com/contiv/netplugin/utils"
 	"github.com/docker/libnetwork/drivers/remote/api"
+	"github.com/docker/libnetwork/netlabel"
+	"github.com/docker/libnetwork/options"
 	"github.com/samalba/dockerclient"
 )
 
@@ -72,12 +76,186 @@ func deleteNetwork(w http.ResponseWriter, r *http.Request) {
 	w.Write(content)
 }
 
+// NwCfg structure
+type NwCfg struct {
+	TenantName  string
+	NetworkName string
+	Encap       string
+	Subnet      string
+	Gateway     string
+	Ipv6Subnet  string
+	Ipv6Gateway string
+	PktTag      int
+	NWType      string
+}
+
+/*
+type CreateNetworkRequest struct {
+	TenantName  string
+	NetworkName string
+	Encap       string
+	Subnet      string
+	Gateway     string
+	Ipv6Subnet  string
+	Ipv6Gateway string
+	PktTag      int
+	NwType      string
+}
+type CreateNetworkRequest struct {
+	// A network ID that remote plugins are expected to store for future
+	// reference.
+	NetworkID string
+
+	// A free form map->object interface for communication of options.
+	Options map[string]interface{}
+
+	// IPAMData contains the address pool information for this network
+	IPv4Data, IPv6Data []driverapi.IPAMData
+}
+// IPAMData represents the per-network ip related
+// operational information libnetwork will send
+// to the network driver during CreateNetwork()
+type IPAMData struct {
+	AddressSpace string
+	Pool         *net.IPNet
+	Gateway      *net.IPNet
+	AuxAddresses map[string]*net.IPNet
+}
+
+*/
+
+func populateFromNetworkOptions(option options.Generic) (*master.CreateNetworkRequest, error) {
+	var err error
+	var crNetReq *master.CreateNetworkRequest
+	if genericOptions, ok := option[netlabel.GenericData]; ok && genericOptions != nil {
+		log.Infof("Generic options: %+v", genericOptions)
+		log.Infof("Generic to cnreq")
+		crNetOptions, err := options.GenerateFromModel(genericOptions.(map[string]interface{}), &master.CreateNetworkRequest{})
+		if err != nil {
+			log.Errorf("Could not generate network config: %+v", err)
+		}
+		log.Infof("Generic data: %+v", crNetOptions)
+		crNetReq, ok = crNetOptions.(*master.CreateNetworkRequest)
+	}
+
+	/*crNetReq = nwCfg.(*master.CreateNetworkRequest)
+	if genericOptions, ok := option[netlabel.GenericData]; ok && genericOptions != nil {
+			switch opt := genericOptions.(type) {
+			case map[string]string:
+				for label, val := range opt {
+					switch label {
+					case "tenantName":
+						crNetReq.TenantName = val
+					case "networkName":
+						crNetReq.NetworkName = val
+					case "encap":
+						crNetReq.Encap = val
+					case "pktTag":
+						crNetReq.PktTag, _ = strconv.Atoi(val)
+					case "nwType":
+						crNetReq.NwType = val
+					}
+				}
+			case options.Generic:
+				log.Infof("================================================")
+				log.Infof("DIVYA: Generic label")
+				log.Infof("================================================")
+				nwCfg, err := options.GenerateFromModel(opt, &master.CreateNetworkRequest{})
+				if err != nil {
+					log.Errorf("Could not generate network config: %+v", err)
+				}
+				crNetReq = nwCfg.(*master.CreateNetworkRequest)
+			case interface{}:
+	            switch opType := opt.(type) {
+	                case map[string]string:
+	                    log.Infof("interface type Divya map[string]string")
+	                    for label, val := range opType {
+	                        log.Infof("%+v", label)
+	                        switch label {
+	                        case "tenantName":
+	                            crNetReq.TenantName = val
+	                        case "networkName":
+	                            crNetReq.NetworkName = val
+	                        case "encap":
+	                            crNetReq.Encap = val
+	                        case "pktTag":
+	                            crNetReq.PktTag, _ = strconv.Atoi(val)
+	                        case "nwType":
+	                            crNetReq.NwType = val
+	                        }
+	                    }
+	                case options.Generic:
+	                    log.Infof("Generaic label")
+	                    nwCfg, err := options.GenerateFromModel(opType, &master.CreateNetworkRequest{})
+	                    if err != nil {
+	                        log.Errorf("Could not generate network config: %+v", err)
+	                    }
+	                    crNetReq = nwCfg.(*master.CreateNetworkRequest)
+	                }
+
+	            optStr := opt.(map[string]string)
+				log.Infof("interface{} type: %+v, %+v ", reflect.TypeOf(opt), opt)
+				for label, val := range optStr {
+					switch label {
+					case "tenantName":
+						crNetReq.TenantName = val
+					case "networkName":
+						crNetReq.NetworkName = val
+					case "encap":
+						crNetReq.Encap = val
+					case "pktTag":
+						crNetReq.PktTag, _ = strconv.Atoi(val)
+					case "nwType":
+						crNetReq.NwType = val
+					}
+				}
+			default:
+				log.Infof("Undefined option type")
+			}
+		}*/
+
+	return crNetReq, err
+}
+
+func parseCreateNetworkRequest(cnreq api.CreateNetworkRequest) (*master.CreateNetworkRequest, error) {
+	//var crNetReq = master.CreateNetworkRequest{}
+
+	if len(cnreq.IPv4Data) == 0 || cnreq.IPv4Data[0].Pool.String() == "0.0.0.0/0" {
+		log.Errorf("Unsupported network configuration: No IPv4 information")
+	}
+	/*
+		crNetReq.Subnet = cnreq.IPv4Data[0].Pool.String()
+		crNetReq.Gateway = cnreq.IPv4Data[0].Gateway.String()
+		if len(cnreq.IPv6Data) > 0 {
+			crNetReq.Ipv6Subnet = cnreq.IPv6Data[0].Pool.String()
+			crNetReq.Ipv6Gateway = cnreq.IPv6Data[0].Gateway.String()
+		}
+	*/
+	crNetReq, err := populateFromNetworkOptions(cnreq.Options)
+	if err != nil {
+		return nil, err
+	}
+	log.Infof("Create Network Request after populateFromNetworkOptions: %+v", crNetReq)
+
+	crNetReq.Subnet = cnreq.IPv4Data[0].Pool.String()
+	crNetReq.Gateway = cnreq.IPv4Data[0].Gateway.String()
+	if len(cnreq.IPv6Data) > 0 {
+		crNetReq.Ipv6Subnet = cnreq.IPv6Data[0].Pool.String()
+		crNetReq.Ipv6Gateway = cnreq.IPv6Data[0].Gateway.String()
+	}
+	log.Infof("Create Network Request before returning: %+v", crNetReq)
+
+	return crNetReq, nil
+}
+
 func createNetwork(w http.ResponseWriter, r *http.Request) {
 	var (
-		content []byte
-		err     error
-		decoder = json.NewDecoder(r.Body)
-		cnreq   = api.CreateNetworkRequest{}
+		content   []byte
+		err       error
+		decoder   = json.NewDecoder(r.Body)
+		cnreq     = api.CreateNetworkRequest{}
+		crNetReq  *master.CreateNetworkRequest
+		crNetResp master.CreateNetworkResponse
 	)
 
 	logEvent("create network")
@@ -88,7 +266,19 @@ func createNetwork(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	log.Infof("CreateNetworkRequest: %+v", cnreq)
+	log.Infof("CreateNetworkRequest: %+v, Options: %+v", cnreq, cnreq.Options[netlabel.GenericData])
+
+	crNetReq, err = parseCreateNetworkRequest(cnreq)
+	if err != nil {
+		httpError(w, "Error in parsing create network request", err)
+		return
+	}
+
+	err = cluster.MasterPostReq("/plugin/createNetwork", &crNetReq, &crNetResp)
+	if err != nil {
+		httpError(w, "master failed to create network", err)
+		return
+	}
 
 	cnresp := api.CreateNetworkResponse{}
 	content, err = json.Marshal(cnresp)
@@ -98,6 +288,15 @@ func createNetwork(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Write(content)
+	/*
+		err := populateFromNetworkOptions(cnreq.Options, crNetReq)
+
+		data, _ := cnreq.Options[netlabel.GenericData]
+		log.Infof("Type of options %+v", reflect.TypeOf(cnreq.Options))
+		log.Infof("Type of generic data: %+v", reflect.TypeOf(data))
+
+		log.Infof("Create Network request: %+v", crNetReq)
+	*/
 }
 
 func deleteEndpoint(hostname string) func(http.ResponseWriter, *http.Request) {

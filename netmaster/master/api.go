@@ -30,6 +30,23 @@ import (
 	"github.com/contiv/netplugin/utils/netutils"
 )
 
+// CreateNetworkRequest is the network request
+type CreateNetworkRequest struct {
+	TenantName  string
+	NetworkName string
+	Encap       string
+	Subnet      string
+	Gateway     string
+	Ipv6Subnet  string
+	Ipv6Gateway string
+	PktTag      int
+	NwType      string
+}
+
+// CreateNetworkResponse is the network response
+type CreateNetworkResponse struct {
+}
+
 // AddressAllocRequest is the address request from netplugin
 type AddressAllocRequest struct {
 	NetworkID            string // Unique identifier for the network
