@@ -437,8 +437,9 @@ func UpdateEndpointHandler(w http.ResponseWriter, r *http.Request, vars map[stri
 							vnfInstance.Labels[k] = v
 						}
 
-						log.Infof("EP Update request. VNF labels matched. vnfID: %+v, vnfInstanceID: %+v", vnfID, vnfInstanceID)
 						mastercfg.VnfDb[vnfID].VnfInstances[vnfInstanceID] = vnfInstance
+						mastercfg.VnfInstanceDb[vnfInstanceID] = vnfInstance
+						log.Infof("EP Update request. VNF labels matched. vnfID: %+v, vnfInstanceID: %+v, vnfDB: %+v, vnfInstanceDb: %+v", vnfID, vnfInstanceID, mastercfg.VnfDb, mastercfg.VnfInstanceDb)
 						vnfState := &mastercfg.CfgVnfState{}
 						vnfState.StateDriver = stateDriver
 						vnfStateID := GetVnfID(vnf.Tenant, vnf.VnfName)
@@ -519,10 +520,21 @@ func UpdateEndpointHandler(w http.ResponseWriter, r *http.Request, vars map[stri
 		}
 
 		vnfInstanceID := GetVnfInstanceID(epUpdReq.Tenant, epUpdReq.ContainerName)
+		log.Infof("Die event for EP: %+v, VNF instance ID: %+v, VNF Instance DB: %+v", epUpdReq, vnfInstanceID, mastercfg.VnfInstanceDb)
 		if vnfInstance := mastercfg.VnfInstanceDb[vnfInstanceID]; vnfInstance != nil {
 			vnfID := GetVnfID(epUpdReq.Tenant, vnfInstance.VnfName)
 			log.Infof("VNF map: %+v, vnfID: %s, vnfInstanceID: %s", mastercfg.VnfDb, vnfID, vnfInstanceID)
 			delete(mastercfg.VnfDb[vnfID].VnfInstances, vnfInstanceID)
+			delete(mastercfg.VnfInstanceDb, vnfInstanceID)
+
+			vnfState := &mastercfg.CfgVnfState{}
+			vnfState.StateDriver = stateDriver
+			err = vnfState.Read(vnfID)
+			if err != nil {
+				return nil, err
+			}
+			delete(vnfState.VnfInstances, vnfInstanceID)
+			vnfState.Write()
 		} else {
 			providerDbID := epUpdReq.ContainerID
 

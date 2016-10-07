@@ -88,11 +88,28 @@ func handleDockerEvents(event *dockerclient.Event, ec chan error, args ...interf
 			log.Errorf("Unable to fetch container labels for container %s ", event.ID)
 		}
 	case "die":
-		endpointUpdReq.ContainerID = event.ID
+		defaultHeaders := map[string]string{"User-Agent": "engine-api-cli-1.0"}
+		cli, err := client.NewClient("unix:///var/run/docker.sock", "v1.21", nil, defaultHeaders)
+		if err != nil {
+			panic(err)
+		}
+
+		containerInfo, err := cli.ContainerInspect(context.Background(), event.ID)
+
+		if err != nil {
+			log.Errorf("Container Inspect failed :%s", err)
+			return
+		}
+
+		containerTenant := getTenantFromContainerInspect(&containerInfo)
 		endpointUpdReq.Event = "die"
+		endpointUpdReq.ContainerID = event.ID
+		endpointUpdReq.Tenant = containerTenant
+		endpointUpdReq.ContainerName = containerInfo.Name
+
 		var epUpdResp master.UpdateEndpointResponse
 		log.Infof("Sending Endpoint update request to master: {%+v} on container delete", endpointUpdReq)
-		err := cluster.MasterPostReq("/plugin/updateEndpoint", endpointUpdReq, &epUpdResp)
+		err = cluster.MasterPostReq("/plugin/updateEndpoint", endpointUpdReq, &epUpdResp)
 		if err != nil {
 			log.Errorf("Event:'die' Http error posting endpoint update, Error:%s", err)
 		}
