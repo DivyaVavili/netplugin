@@ -1,0 +1,16 @@
+TODO items:
+- Restoration VNF and VNF instances
+- RWMutex for maps of VnfDb and VnfInstanceDb
+- Test cases
+- Ofnet policy installation
+    => Install policy on policy-create. Src and Dest EPG are already existing durgin policy create
+    => Maintain MAC address of VNF instances
+    => Hash algorithm for choosing VNF instance during policy create
+    => Act during OfnetEndpoint create/delete
+
+Completed:
+    => Add support for VNF CLI
+        - netctl vnf nw-func-create -e <encap> -vtep-ip <> <vnfName>
+        - netctl vnf policy-create -s <src-group> -d <dst-group> -v <vnfName> <policyName>
+    => Maintain state at contivModel and netplugin state
+       - DB of VNF to VNFInstances maintained
