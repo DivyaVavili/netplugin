@@ -24,6 +24,7 @@ import (
 	"sync"
 
 	log "github.com/Sirupsen/logrus"
+	contivClient "github.com/contiv/contivmodel/client"
 	"github.com/contiv/netplugin/netmaster/intent"
 	"github.com/contiv/netplugin/netmaster/mastercfg"
 	"github.com/contiv/netplugin/utils"
@@ -521,10 +522,57 @@ func UpdateEndpointHandler(w http.ResponseWriter, r *http.Request, vars map[stri
 	return epUpdResp, nil
 }
 
+func getClient() *contivClient.ContivClient {
+	cl, err := contivClient.NewContivClient("http://netmaster:9999")
+	if err != nil {
+		log.Errorf("Error connecting to netmaster")
+		return nil
+	}
+
+	return cl
+}
+
 // CreateNetworkHandler handles network creation
 func CreateNetworkHandler(w http.ResponseWriter, r *http.Request, vars map[string]string) (interface{}, error) {
-	log.Infof("In create network handler")
-	return nil, nil
+	var crNetReq CreateNetworkRequest
+
+	// Get object from the request
+	err := json.NewDecoder(r.Body).Decode(&crNetReq)
+
+	if err != nil {
+		log.Errorf("Error decoding CreateNetworkRequest. Err %v", err)
+		return nil, err
+	}
+
+	log.Infof("Received CreateNetworkRequest {%+v}", crNetReq)
+	/*
+		stateDriver, err := utils.GetStateDriver()
+		if err != nil {
+			return nil, err
+		}
+
+		log.Infof("In create network handler")
+	*/
+	gateway := strings.Split(crNetReq.Gateway, "/")[0]
+	err = getClient().NetworkPost(&contivClient.Network{
+		TenantName:  crNetReq.TenantName,
+		NetworkName: crNetReq.NetworkName,
+		Encap:       crNetReq.Encap,
+		Subnet:      crNetReq.Subnet,
+		Gateway:     gateway,
+		Ipv6Subnet:  crNetReq.Ipv6Subnet,
+		Ipv6Gateway: crNetReq.Ipv6Gateway,
+		PktTag:      crNetReq.PktTag,
+		NwType:      crNetReq.NwType,
+	})
+	if err != nil {
+		log.Errorf("Error creating network: %+v", err)
+		return nil, err
+	}
+
+	crNetResp := CreateNetworkResponse{}
+
+	return crNetResp, nil
 }
 
 // DeleteNetworkHandler handles network creation
