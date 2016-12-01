@@ -520,3 +520,15 @@ func UpdateEndpointHandler(w http.ResponseWriter, r *http.Request, vars map[stri
 	}
 	return epUpdResp, nil
 }
+
+// CreateNetworkHandler handles network creation
+func CreateNetworkHandler(w http.ResponseWriter, r *http.Request, vars map[string]string) (interface{}, error) {
+	log.Infof("In create network handler")
+	return nil, nil
+}
+
+// DeleteNetworkHandler handles network creation
+func DeleteNetworkHandler(w http.ResponseWriter, r *http.Request, vars map[string]string) (interface{}, error) {
+	log.Infof("In delete network handler")
+	return nil, nil
+}

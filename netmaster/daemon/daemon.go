@@ -182,6 +182,8 @@ func (d *MasterDaemon) registerRoutes(router *mux.Router) {
 	s.HandleFunc("/plugin/createEndpoint", makeHTTPHandler(master.CreateEndpointHandler))
 	s.HandleFunc("/plugin/deleteEndpoint", makeHTTPHandler(master.DeleteEndpointHandler))
 	s.HandleFunc("/plugin/updateEndpoint", makeHTTPHandler(master.UpdateEndpointHandler))
+	s.HandleFunc("/plugin/createNetwork", makeHTTPHandler(master.CreateNetworkHandler))
+	s.HandleFunc("/plugin/deleteNetwork", makeHTTPHandler(master.DeleteNetworkHandler))
 
 	s = router.Methods("Get").Subrouter()
 
