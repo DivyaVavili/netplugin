@@ -1,0 +1,5 @@
+Create network from docker network create works:
+docker network create --driver netplugin --subnet 10.9.0.0/16 --opt "TenantName"="default" --opt "Encap"="vxlan" --opt "NwType"="infra" net9
+
+To solve:
+Create from netctl calls CreateDockNet which in turn triggers CreateNetwork which can go into a loop
