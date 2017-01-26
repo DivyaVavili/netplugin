@@ -62,8 +62,10 @@ echo "export no_proxy='k8master,192.168.2.10,192.168.2.11,192.168.2.12,netmaster
 echo "export no_proxy='k8master,192.168.2.10,192.168.2.11,192.168.2.12,netmaster,localhost,127.0.0.1'" >> ~/.profile
 source /etc/profile.d/envvar.sh
 # Change ownership for gopath folder
-chown vagrant #{gopath_folder}
+chown -R vagrant #{gopath_folder}
 sudo yum install -y net-tools
+sudo yum install -y go
+sudo yum install -y git
 SCRIPT
 
 provision_master = <<SCRIPT
@@ -94,6 +96,8 @@ Vagrant.configure(2) do |config|
   config.ssh.private_key_path = "./../../scripts/insecure_private_key"
   
   config.vm.synced_folder "./export", "/shared"
+  config.vm.synced_folder "./../../","/opt/gopath/src/github.com/contiv/netplugin"
+  config.vm.synced_folder "./../../bin","/opt/gopath/bin"
   cluster.each do |role, member_list|
     member_list.each do |member_info|
       config.vm.define vm_name = member_info["name"] do |c|
@@ -102,7 +106,6 @@ Vagrant.configure(2) do |config|
            box_name = vm_name
 	    if  role == "master" then
 	      c.vm.box = "contiv/k8master"
-              c.vm.synced_folder "./../../","/opt/gopath/src/github.com/contiv/netplugin"
 	      c.vm.provision "shell" do |s|
 		s.inline = provision_k8
                 s.args = [ENV["http_proxy"] || "", ENV["https_proxy"] || ""]

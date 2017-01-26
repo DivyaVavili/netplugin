@@ -61,6 +61,7 @@ var _ = Suite(sts)
 func TestMain(m *M) {
 	mastbasic, _, _ := getInfo("cfg.json")
 
+    logrus.Infof("Got info from cfg.json")
 	if mastbasic.ContivL3 == "" {
 		flag.StringVar(&sts.fwdMode, "fwd-mode", "bridge", "forwarding mode to start the test ")
 	} else {

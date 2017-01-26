@@ -188,7 +188,7 @@ func (k *kubernetes) checkPing6(c *container, ipaddr string) error {
 
 func (k *kubernetes) getIPAddr(c *container, dev string) (string, error) {
 	////master.lock()
-	out, err := k8master.tbnode.RunCommandWithOutput(fmt.Sprintf("kubectl exec %s ip addr show dev %s | grep inet | head -1", c.containerID, dev))
+	out, err := k8master.tbnode.RunCommandWithOutput(fmt.Sprintf("kubectl exec %s -- ip addr show dev %s | grep inet | head -1", c.containerID, dev))
 	//master.unlock()
 	if err != nil {
 		logrus.Errorf("Failed to get IP for container %q", c.containerID)
@@ -269,7 +269,7 @@ func (k *kubernetes) stop(c *container) error {
 
 func (k *kubernetes) rm(c *container) error {
 	logrus.Infof("Removing Pod: %s on %s", c.containerID, c.node.Name())
-	k8master.tbnode.RunCommand(fmt.Sprintf("kubectl delete job %s", c.name))
+	k8master.tbnode.RunCommand(fmt.Sprintf("kubectl delete pod %s", c.name))
 	for i := 0; i < 80; i++ {
 		out, _ := k8master.tbnode.RunCommandWithOutput(fmt.Sprintf("kubectl get pod %s", c.containerID))
 		if strings.Contains(out, "not found") {
@@ -415,14 +415,7 @@ func (n *node) cleanupDockerNetwork() error {
 func (k *kubernetes) cleanupContainers() error {
 	if k.node.Name() == "k8master" {
 		logrus.Infof("Cleaning up containers on %s", k.node.Name())
-		cmd := "kubectl get job -o name"
-		out, err := k8master.tbnode.RunCommandWithOutput(cmd)
-		if err != nil {
-			logrus.Infof("cmd %q failed: output below", cmd)
-			logrus.Println(out)
-			return err
-		}
-		k8master.tbnode.RunCommand(fmt.Sprintf("kubectl delete jobs --all "))
+		k8master.tbnode.RunCommand(fmt.Sprintf("kubectl delete deployment --all "))
 	}
 	return nil
 }
@@ -439,16 +432,31 @@ func (k *kubernetes) stopNetplugin() error {
 	if k.node.Name() == "k8master" {
 		return nil
 	}
+    contNameCmd := fmt.Sprintf("kubectl -n kube-system get pods -o wide | grep netplugin | grep %s | cut -d \" \" -f 1", k.node.Name())
+    containerName, err := k8master.tbnode.RunCommandWithOutput(contNameCmd)
+    if err != nil {
+        return err
+    }
+
 	logrus.Infof("Stopping netplugin on %s", k.node.Name())
-	return k.node.tbnode.RunCommand("sudo pkill netplugin")
+    killNetpluginCmd := fmt.Sprintf("kubectl -n kube-system exec -it %s -- pkill netplugin", containerName)
+    logrus.Infof("Stopping netplugin on %s using command: %s", k.node.Name(), killNetpluginCmd)
+    return k8master.tbnode.RunCommand(killNetpluginCmd)
 }
 
 func (k *kubernetes) stopNetmaster() error {
 	if k.node.Name() != "k8master" {
 		return nil
 	}
+    contNameCmd := fmt.Sprintf("kubectl -n kube-system get pods -o wide | grep netmaster | grep %s | cut -d \" \" -f 1", k.node.Name())
+    containerName, err := k8master.tbnode.RunCommandWithOutput(contNameCmd)
+    if err != nil {
+        return err
+    }
+
 	logrus.Infof("Stopping netmaster on %s", k.node.Name())
-	return k.node.tbnode.RunCommand("sudo pkill netmaster")
+    killNetmasterCmd := fmt.Sprintf("kubectl -n kube-system exec -it %s -- pkill netmaster", containerName)
+    return k8master.tbnode.RunCommand(killNetmasterCmd)
 }
 
 func (k *kubernetes) startNetmaster() error {
@@ -470,12 +478,19 @@ func (k *kubernetes) cleanupMaster() {
 	//defer master.Unlock()
 	logrus.Infof("Cleaning up master on %s", k8master.Name())
 	vNode := k8master.tbnode
-	vNode.RunCommand("etcdctl rm --recursive /contiv")
-	vNode.RunCommand("etcdctl rm --recursive /contiv.io")
-	vNode.RunCommand("etcdctl rm --recursive /docker")
-	vNode.RunCommand("etcdctl rm --recursive /skydns")
-	vNode.RunCommand("curl -X DELETE localhost:8500/v1/kv/contiv.io?recurse=true")
-	vNode.RunCommand("curl -X DELETE localhost:8500/v1/kv/docker?recurse=true")
+
+    etcdIPOut, err := vNode.RunCommandWithOutput("kubectl -n kube-system describe pod contiv-etcd | grep IP | cut -d \":\" -f 2")
+    if err != nil {
+        logrus.Errorf("couldn't find IP for etcd container")
+        return
+    }
+    etcdIP := strings.TrimSpace(etcdIPOut)
+    logrus.Infof("Cleaning out etcd info on %s", etcdIP)
+
+    vNode.RunCommand(fmt.Sprintf("etcdctl -C %s:6666 rm --recursive /contiv", etcdIP))
+    vNode.RunCommand(fmt.Sprintf("etcdctl -C %s:6666 rm --recursive /contiv.io", etcdIP))
+    vNode.RunCommand(fmt.Sprintf("etcdctl -C %s:6666 rm --recursive /docker", etcdIP))
+    vNode.RunCommand(fmt.Sprintf("etcdctl -C %s:6666 rm --recursive /skydns", etcdIP))
 }
 
 func (k *kubernetes) cleanupSlave() {
@@ -484,8 +499,7 @@ func (k *kubernetes) cleanupSlave() {
 	}
 	logrus.Infof("Cleaning up slave on %s", k.node.Name())
 	vNode := k.node.tbnode
-	vNode.RunCommand("sudo ovs-vsctl del-br contivVxlanBridge")
-	vNode.RunCommand("sudo ovs-vsctl del-br contivVlanBridge")
+	vNode.RunCommand("ovs-vsctl list-br | grep contiv | xargs -I % ovs-vsctl del-br % > /dev/null 2>&1")
 	vNode.RunCommand("for p in `ifconfig  | grep vport | awk '{print $1}'`; do sudo ip link delete $p type veth; done")
 	vNode.RunCommand("sudo rm /var/run/docker/plugins/netplugin.sock")
 	vNode.RunCommand("sudo service docker restart")
@@ -542,8 +556,8 @@ func (k *kubernetes) checkForNetpluginErrors() error {
 }
 
 func (k *kubernetes) rotateLog(prefix string) error {
-	oldPrefix := fmt.Sprintf("/tmp/%s", prefix)
-	newPrefix := fmt.Sprintf("/tmp/_%s", prefix)
+	oldPrefix := fmt.Sprintf("/var/contiv/log/%s", prefix)
+	newPrefix := fmt.Sprintf("/var/contiv/log/_%s", prefix)
 	_, err := k.node.runCommand(fmt.Sprintf("mv %s.log %s-`date +%%s`.log", oldPrefix, newPrefix))
 	return err
 }

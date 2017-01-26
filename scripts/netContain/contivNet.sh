@@ -10,6 +10,7 @@ cmode="bridge"
 netmaster=false
 netplugin=true
 vlan_if="$VLAN_IF"
+auto_restart="$AUTO_RESTART"
 
 #This needs to be fixed, we cant rely on the value being supplied from 
 # parameters, just explosion of parameters is not a great solution
@@ -66,8 +67,7 @@ if [ $netplugin == true ]; then
 fi
 
 if [ $reinit == true ]; then
-    ovs-vsctl del-br contivVlanBridge
-    ovs-vsctl del-br contivVxlanBridge
+    ovs-vsctl list-br | grep contiv | xargs -I % ovs-vsctl del-br % > /dev/null 2>&1
 fi
 
 
@@ -89,9 +89,12 @@ if [ $netmaster == true ]; then
    mkdir -p /var/contiv/log/
    while [ true ]; do
        if [ "$cstore" != "" ]; then
-           /contiv/bin/netmaster  -cluster-mode $plugin -dns-enable=false -cluster-store $cstore &> /var/contiv/log/netmaster.log
+           /contiv/bin/netmaster  -cluster-mode $plugin -cluster-store $cstore &> /var/contiv/log/netmaster.log
        else
-           /contiv/bin/netmaster -cluster-mode $plugin -dns-enable=false  &> /var/contiv/log/netmaster.log
+           /contiv/bin/netmaster -cluster-mode $plugin &> /var/contiv/log/netmaster.log
+       fi
+       if [ $auto_restart == false ]; then
+           break
        fi
        echo "CRITICAL : Net Master has exited, Respawn in 5"
        sleep 5
@@ -112,6 +115,9 @@ if [ $netplugin == true ]; then
            vlan_if_param="-vlan-if"
        fi
        /contiv/bin/netplugin $cstore_param $cstore $vtep_ip_param $vtep_ip $vlan_if_param $vlan_if -plugin-mode $plugin &> /var/contiv/log/netplugin.log
+       if [ $auto_restart == false ]; then
+           break
+       fi
        echo "CRITICAL : Net Plugin has exited, Respawn in 5"
        sleep 5
    done &
