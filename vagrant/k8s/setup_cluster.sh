@@ -69,6 +69,9 @@ function GetContrib {
 # contiv version
 : ${contivVer:=v0.1-09-08-2016.20-56-40.UTC}
 
+# sanity setup
+k8_sanity=${CONTIV_K8}
+
 top_dir=$(git rev-parse --show-toplevel | sed 's|/[^/]*$||')
 
 # kubernetes installation mechanism
@@ -77,7 +80,7 @@ if [ "`printf "v1.4\n$k8sVer" | sort -t '.' -k 1,1 -k 2,2 -k 3,3 -k 4,4 -g | hea
    legacyInstall=1
 fi
 
-if [ $legacyInstall == 1 ]; then
+if [ $legacyInstall == 1 ] || [ "$k8_sanity" == "1" ]; then
    echo "Using legacy kubernetes installation"
    GetKubernetes
    GetContrib
@@ -85,22 +88,15 @@ else
    echo "Using kubeadm/kubectl installation"
 fi
 
-k8_sanity=${CONTIV_K8}
 if [ $legacyInstall == 1 ] && [ "$k8_sanity" == "" ]; then
    GetContiv
-fi
-
-if [ $legacyInstall == 1 ] && [ "$k8_sanity" == "1" ]; then
-   if [ ! -f ./contrib ]; then
-      git clone https://github.com/jojimt/contrib -b contiv
-   fi
 fi
 
 # exit on any error
 set -e
 
 # bring up vms
-if [ $legacyInstall == 1 ]; then
+if [ $legacyInstall == 1 ] || [ "$k8_sanity" == "1" ]; then
    vagrant up
 else
    # Copy the contiv installation file to shared folder
@@ -114,7 +110,7 @@ fi
 ./vagrant_cluster.py
 
 
-if [ $legacyInstall == 1 ] && [ "$k8_sanity" == "" ]; then
+if [ $legacyInstall == 1 ] || [ "$k8_sanity" == "1" ]; then
 # run ansible
 ansible-playbook -i .contiv_k8s_inventory ./contrib/ansible/cluster.yml --skip-tags "contiv_restart" -e "networking=contiv contiv_fabric_mode=default localBuildOutput=$top_dir/k8s-$k8sVer/kubernetes/server/bin contiv_bin_path=$top_dir/contiv_bin contiv_demo=True"
 fi
