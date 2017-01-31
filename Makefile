@@ -117,7 +117,7 @@ endif
 
 #kubernetes demo targets
 k8s-cluster:
-	cd vagrant/k8s/ && ./setup_cluster.sh
+	CONTIV_K8=1	cd vagrant/k8s/ && ./setup_cluster.sh
 k8s-demo:
 	cd vagrant/k8s/ && ./copy_demo.sh
 k8s-demo-start:
@@ -125,7 +125,7 @@ k8s-demo-start:
 k8s-destroy:
 	cd vagrant/k8s/ && vagrant destroy -f
 k8s-test:
-	cd $(GOPATH)/src/github.com/contiv/netplugin/scripts/python && PYTHONIOENCODING=utf-8 ./createcfg.py -scheduler 'k8'
+	cd $(GOPATH)/src/github.com/contiv/netplugin/scripts/python && PYTHONIOENCODING=utf-8 ./createcfg.py -scheduler 'k8' -binpath contiv/bin
 	CONTIV_K8=1 CONTIV_NODES=3 go test -v -timeout 540m ./test/systemtests -check.v -check.f "TestTriggerNetpluginDisconnect" 
 	#cd vagrant/k8s && vagrant destroy -f 
 

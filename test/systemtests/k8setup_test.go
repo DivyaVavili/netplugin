@@ -21,6 +21,13 @@ type kubernetes struct {
 
 var k8master *node
 
+const (
+    netmasterRestartFile = "/tmp/restart_netmaster"
+    netpluginRestartFile = "/tmp/restart_netplugin"
+    netmasterLogLocation = "/var/contiv/log/netmaster.log"
+    netpluginLogLocation = "/var/contiv/log/netplugin.log"
+)
+
 //var master sync.Mutex
 
 func (s *systemtestSuite) NewK8sExec(n *node) *kubernetes {
@@ -424,8 +431,25 @@ func (k *kubernetes) startNetplugin(args string) error {
 	if k.node.Name() == "k8master" {
 		return nil
 	}
-	logrus.Infof("Starting netplugin on %s", k.node.Name())
-	return k.node.tbnode.RunCommandBackground("sudo " + k.node.suite.basicInfo.BinPath + "/netplugin -plugin-mode kubernetes -vlan-if " + k.node.suite.hostInfo.HostDataInterfaces + " --cluster-store " + k.node.suite.basicInfo.ClusterStore + " " + args + "&> /tmp/netplugin.log")
+    contNameCmd := fmt.Sprintf("kubectl -n kube-system get pods -o wide | grep netplugin | grep %s | cut -d \" \" -f 1", k.node.Name())
+    containerName, err := k8master.tbnode.RunCommandWithOutput(contNameCmd)
+    if err != nil {
+        return err
+    }
+
+    containerName = strings.TrimSpace(containerName)
+    startRestartCmd := "kubectl -n kube-system exec -it  " + containerName + " -- sudo " + k.node.suite.basicInfo.BinPath + "/netplugin -plugin-mode kubernetes -vlan-if " + k.node.suite.hostInfo.HostDataInterfaces + " --cluster-store " + k.node.suite.basicInfo.ClusterStore + " " + args + "&> " + netpluginLogLocation
+
+  //  startRestartCmd := fmt.Sprintf("kubectl -n kube-system exec -it %s -- touch %s", containerName, netpluginRestartFile)
+    logrus.Infof("Starting netplugin on %s with command: %s", k.node.Name(), startRestartCmd)
+    out, err := k8master.tbnode.RunCommandWithOutput(startRestartCmd)
+    if err != nil {
+        logrus.Errorf("Error: %+v", err)
+        return err
+    }
+    
+    logrus.Infof("Output: %+v", out)
+    return nil
 }
 
 func (k *kubernetes) stopNetplugin() error {
@@ -438,10 +462,16 @@ func (k *kubernetes) stopNetplugin() error {
         return err
     }
 
+    containerName = strings.TrimSpace(containerName)
+    stopRestartCmd := fmt.Sprintf("kubectl -n kube-system exec -it %s -- rm %s", containerName, netpluginRestartFile)
+    k8master.tbnode.RunCommand(stopRestartCmd)
+
 	logrus.Infof("Stopping netplugin on %s", k.node.Name())
     killNetpluginCmd := fmt.Sprintf("kubectl -n kube-system exec -it %s -- pkill netplugin", containerName)
     logrus.Infof("Stopping netplugin on %s using command: %s", k.node.Name(), killNetpluginCmd)
-    return k8master.tbnode.RunCommand(killNetpluginCmd)
+    out, err := k8master.tbnode.RunCommandWithOutput(killNetpluginCmd)
+    logrus.Infof("Output: %+v", out)
+   return nil
 }
 
 func (k *kubernetes) stopNetmaster() error {
@@ -453,6 +483,10 @@ func (k *kubernetes) stopNetmaster() error {
     if err != nil {
         return err
     }
+    containerName = strings.TrimSpace(containerName)
+
+    stopRestartCmd := fmt.Sprintf("kubectl -n kube-system exec -it %s -- rm %s", containerName, netmasterRestartFile)
+    k8master.tbnode.RunCommand(stopRestartCmd)
 
 	logrus.Infof("Stopping netmaster on %s", k.node.Name())
     killNetmasterCmd := fmt.Sprintf("kubectl -n kube-system exec -it %s -- pkill netmaster", containerName)
@@ -464,11 +498,24 @@ func (k *kubernetes) startNetmaster() error {
 		return nil
 	}
 	logrus.Infof("Starting netmaster on %s", k.node.Name())
-	dnsOpt := " --dns-enable=false "
+	/*dnsOpt := " --dns-enable=false "
 	if k.node.suite.basicInfo.EnableDNS {
 		dnsOpt = " --dns-enable=true "
-	}
-	return k.node.tbnode.RunCommandBackground(k.node.suite.basicInfo.BinPath + "/netmaster" + dnsOpt + " --cluster-store " + k.node.suite.basicInfo.ClusterStore + " " + "--cluster-mode kubernetes &> /tmp/netmaster.log")
+	}*/
+
+    contNameCmd := fmt.Sprintf("kubectl -n kube-system get pods -o wide | grep netplugin | grep %s | cut -d \" \" -f 1", k.node.Name())
+    containerName, err := k8master.tbnode.RunCommandWithOutput(contNameCmd)
+    if err != nil {
+        return err
+    }
+    containerName = strings.TrimSpace(containerName)
+
+    //netmasterStartCmd := "kubectl -n kube-system exec -it " + containerName + " -- " + k.node.suite.basicInfo.BinPath + "/netmaster" + dnsOpt + " --cluster-store " + k.node.suite.basicInfo.ClusterStore + " " + "--cluster-mode kubernetes &> " + netmasterLogLocation
+    netmasterStartCmd := "kubectl -n kube-system exec -it " + containerName + " -- touch " + netmasterRestartFile
+    logrus.Infof("Starting netmaster on %s with command: %s", k.node.Name(), netmasterStartCmd)
+
+    return k.node.tbnode.RunCommandBackground(netmasterStartCmd)
+//	return k.node.tbnode.RunCommandBackground("kubectl -n kube-system exec -it " + containerName + " -- " + k.node.suite.basicInfo.BinPath + "/netmaster" + dnsOpt + " --cluster-store " + k.node.suite.basicInfo.ClusterStore + " " + "--cluster-mode kubernetes &> " + netmasterLogLocation)
 }
 func (k *kubernetes) cleanupMaster() {
 	if k.node.Name() != "k8master" {
@@ -498,22 +545,53 @@ func (k *kubernetes) cleanupSlave() {
 		return
 	}
 	logrus.Infof("Cleaning up slave on %s", k.node.Name())
+    contNameCmd := fmt.Sprintf("kubectl -n kube-system get pods -o wide | grep netplugin | grep %s | cut -d \" \" -f 1", k.node.Name())
+    containerName, err := k8master.tbnode.RunCommandWithOutput(contNameCmd)
+    if err != nil {
+        logrus.Errorf("Couldn't fetch contaienr info on %s", k.node.Name())
+        return
+    }
+    containerName = strings.TrimSpace(containerName)
+
 	vNode := k.node.tbnode
-	vNode.RunCommand("ovs-vsctl list-br | grep contiv | xargs -I % ovs-vsctl del-br % > /dev/null 2>&1")
-	vNode.RunCommand("for p in `ifconfig  | grep vport | awk '{print $1}'`; do sudo ip link delete $p type veth; done")
-	vNode.RunCommand("sudo rm /var/run/docker/plugins/netplugin.sock")
-	vNode.RunCommand("sudo service docker restart")
+	vNode.RunCommand("kubectl -n kube-system exec -it " + containerName + " -- ovs-vsctl list-br | grep contiv | xargs -I % ovs-vsctl del-br % > /dev/null 2>&1")
+	vNode.RunCommand("kubectl -n kube-system exec -it " + containerName + " -- for p in `ifconfig  | grep vport | awk '{print $1}'`; do sudo ip link delete $p type veth; done")
+//	vNode.RunCommand("sudo rm /var/run/docker/plugins/netplugin.sock")
+//	vNode.RunCommand("sudo service docker restart")
 }
 
 func (k *kubernetes) runCommandUntilNoNetmasterError() error {
 	if k.node.Name() == "k8master" {
-		return k.node.runCommandUntilNoError("pgrep netmaster")
+        logrus.Infof("Checking for netmaster status on: %s", k.node.Name())
+        contNameCmd := fmt.Sprintf("kubectl -n kube-system get pods -o wide | grep netmaster | grep %s", k.node.Name())
+        contNameOut, err := k8master.tbnode.RunCommandWithOutput(contNameCmd)
+        if err != nil {
+            return err
+        }
+        contNameSlice := strings.Split(contNameOut, " ")
+        contName := strings.TrimSpace(contNameSlice[0])
+        //containerName = strings.TrimSpace(containerName)
+
+        processCheckCmd := fmt.Sprintf("kubectl -n kube-system exec -it %s -- pgrep netmaster", contName)
+        logrus.Infof("Process check command: %s", processCheckCmd)
+		return k8master.runCommandUntilNoError(processCheckCmd)
 	}
 	return nil
 }
 func (k *kubernetes) runCommandUntilNoNetpluginError() error {
 	if k.node.Name() != "k8master" {
-		return k.node.runCommandUntilNoError("pgrep netplugin")
+        logrus.Infof("Checking for netplugin status on: %s", k.node.Name())
+        contNameCmd := fmt.Sprintf("kubectl -n kube-system get pods -o wide | grep netplugin | grep %s", k.node.Name())
+        contNameOut, err := k8master.tbnode.RunCommandWithOutput(contNameCmd)
+        if err != nil {
+            return err
+        }
+        contNameSlice := strings.Split(contNameOut, " ")
+        contName := strings.TrimSpace(contNameSlice[0])
+
+        processCheckCmd := fmt.Sprintf("kubectl -n kube-system exec -it %s -- pgrep netplugin", contName)
+        logrus.Infof("Process check command: %s", processCheckCmd)
+		return k8master.runCommandUntilNoError(processCheckCmd)
 	}
 	return nil
 }
