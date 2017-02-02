@@ -104,7 +104,6 @@ func (s *systemtestSuite) SetUpTest(c *C) {
 	case "vagrant":
 		s.SetUpTestVagrant(c)
 	}
-
 }
 
 func (s *systemtestSuite) TearDownTest(c *C) {

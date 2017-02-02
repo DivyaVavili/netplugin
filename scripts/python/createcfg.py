@@ -47,10 +47,11 @@ data['containers'] = args.containers
 data['iterations'] = args.iterations
 data['enableDNS'] = args.enableDNS
 data['contiv_l3'] = args.contiv_l3
-if args.scheduler is 'k8':
-    data['contiv_cluster_store'] = args.contiv_cluster_store
-else:
+print args.scheduler
+if args.scheduler == 'k8':
     data['contiv_cluster_store'] = args.k8_contiv_cluster_store
+else:
+    data['contiv_cluster_store'] = args.contiv_cluster_store
 data['key_file'] = args.key_file
 data['binpath'] = args.binpath
 data['hostips'] = args.hostips
@@ -59,7 +60,7 @@ if args.contiv_l3 == 0:
     data['dataInterfaces'] = args.datainterfaces
 else:
     data['dataInterfaces'] = args.l3_datainterfaces
-if args.scheduler is 'k8':
+if args.scheduler == 'k8':
     data['dataInterfaces'] = args.k8_datainterfaces
 data['mgmtInterface'] = args.mgmtinterface
 data['vlan'] = args.vlan

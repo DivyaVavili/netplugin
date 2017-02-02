@@ -546,9 +546,19 @@ func (k *kubernetes) cleanupSlave() {
     }
     containerName = strings.TrimSpace(containerName)
 
-	vNode := k.node.tbnode
-	vNode.RunCommand("kubectl -n kube-system exec -it " + containerName + " -- sh -c 'ovs-vsctl list-br | grep contiv | xargs -I % ovs-vsctl del-br % > /dev/null 2>&1'")
-	vNode.RunCommand("kubectl -n kube-system exec -it " + containerName + " -- sh -c 'for p in `ifconfig  | grep vport | awk '{print $1}'`; do sudo ip link delete $p type veth; done'")
+	//vNode := k.node.tbnode
+    ovsCleanupCmd := "kubectl -n kube-system exec -it " + containerName + " -- ovs-vsctl list-br | grep contiv"
+    out, err := k8master.tbnode.RunCommandWithOutput(ovsCleanupCmd)
+    for _, ovsBridge := range(strings.Split(out, "\r\n")) {
+        if len(ovsBridge) == 0 {
+            continue
+        }
+        out, err = k8master.tbnode.RunCommandWithOutput("kubectl -n kube-system exec " + containerName + " -- ovs-vsctl del-br " + ovsBridge)
+        logrus.Infof("OVS Bridge cleanup Cmd: %+v %+v Output: %+v; Error: %+v", containerName, ovsBridge, out, err)
+    }
+    linkCleanupCmd := "kubectl -n kube-system exec -it " + containerName + " -- sh -c 'ifconfig  | grep vport | cut -d \" \" -f 1 | xargs -I %% ip link delete %% type veth'"
+	out, err = k8master.tbnode.RunCommandWithOutput(linkCleanupCmd)
+    logrus.Infof("Link cleanup Cmd: %s \nOutput: %+v; Error: %+v", linkCleanupCmd, out, err)
 //	vNode.RunCommand("sudo rm /var/run/docker/plugins/netplugin.sock")
 //	vNode.RunCommand("sudo service docker restart")
 }
@@ -564,7 +574,7 @@ func (k *kubernetes) runCommandUntilNoNetmasterError() error {
         contNameSlice := strings.Split(contNameOut, " ")
         contName := strings.TrimSpace(contNameSlice[0])
 
-        processCheckCmd := fmt.Sprintf("kubectl -n kube-system exec -it %s -- pgrep netmaster", contName)
+        processCheckCmd := fmt.Sprintf("kubectl -n kube-system exec %s -- pgrep netmaster", contName)
         logrus.Infof("Process check command: %s", processCheckCmd)
 		return k8master.runCommandUntilNoError(processCheckCmd)
 	}
@@ -580,7 +590,7 @@ func (k *kubernetes) runCommandUntilNoNetpluginError() error {
         }
         contNameSlice := strings.Split(contNameOut, " ")
         contName := strings.TrimSpace(contNameSlice[0])
-        processCheckCmd := fmt.Sprintf("kubectl -n kube-system exec -it %s -- pgrep netplugin", contName)
+        processCheckCmd := fmt.Sprintf("kubectl -n kube-system exec %s -- pgrep netplugin", contName)
         logrus.Infof("Process check command: %s", processCheckCmd)
 		return k8master.runCommandUntilNoError(processCheckCmd)
     }

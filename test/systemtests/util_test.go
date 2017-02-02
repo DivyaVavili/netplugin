@@ -1315,6 +1315,7 @@ func (s *systemtestSuite) SetUpTestVagrant(c *C) {
 		node.cleanupMaster()
 	}
 
+    os.Exit(1)
 	for _, node := range s.nodes {
 
 		c.Assert(node.startNetplugin(""), IsNil)
