@@ -17,7 +17,7 @@ touch /tmp/restart_netplugin
 #This needs to be fixed, we cant rely on the value being supplied from 
 # parameters, just explosion of parameters is not a great solution
 #export no_proxy="0.0.0.0, 172.28.11.253" 
-#echo "172.28.11.253 netmaster" > /etc/hosts
+echo "192.168.2.10 netmaster" > /etc/hosts
 
 #Needed for Netplugin to connect with OVS, This needs to be 
 #fixed as well. netplugin should have OVS locally. 

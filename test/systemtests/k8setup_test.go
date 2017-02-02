@@ -436,20 +436,14 @@ func (k *kubernetes) startNetplugin(args string) error {
     if err != nil {
         return err
     }
+    logrus.Infof("%s", containerName)
 
     containerName = strings.TrimSpace(containerName)
-    startRestartCmd := "kubectl -n kube-system exec -it  " + containerName + " -- sudo " + k.node.suite.basicInfo.BinPath + "/netplugin -plugin-mode kubernetes -vlan-if " + k.node.suite.hostInfo.HostDataInterfaces + " --cluster-store " + k.node.suite.basicInfo.ClusterStore + " " + args + "&> " + netpluginLogLocation
+    startRestartCmd := "kubectl -n kube-system exec  " + containerName + " -- /contiv/bin/start_pluginagent.sh -b " + k.node.suite.basicInfo.BinPath + " -p kubernetes -i " + k.node.suite.hostInfo.HostDataInterfaces + " -c " + k.node.suite.basicInfo.ClusterStore + " -l " + netpluginLogLocation
 
   //  startRestartCmd := fmt.Sprintf("kubectl -n kube-system exec -it %s -- touch %s", containerName, netpluginRestartFile)
     logrus.Infof("Starting netplugin on %s with command: %s", k.node.Name(), startRestartCmd)
-    out, err := k8master.tbnode.RunCommandWithOutput(startRestartCmd)
-    if err != nil {
-        logrus.Errorf("Error: %+v", err)
-        return err
-    }
-    
-    logrus.Infof("Output: %+v", out)
-    return nil
+    return k8master.tbnode.RunCommandBackground(startRestartCmd)
 }
 
 func (k *kubernetes) stopNetplugin() error {
@@ -469,9 +463,7 @@ func (k *kubernetes) stopNetplugin() error {
 	logrus.Infof("Stopping netplugin on %s", k.node.Name())
     killNetpluginCmd := fmt.Sprintf("kubectl -n kube-system exec -it %s -- pkill netplugin", containerName)
     logrus.Infof("Stopping netplugin on %s using command: %s", k.node.Name(), killNetpluginCmd)
-    out, err := k8master.tbnode.RunCommandWithOutput(killNetpluginCmd)
-    logrus.Infof("Output: %+v", out)
-   return nil
+    return k8master.tbnode.RunCommand(killNetpluginCmd)
 }
 
 func (k *kubernetes) stopNetmaster() error {
@@ -498,23 +490,24 @@ func (k *kubernetes) startNetmaster() error {
 		return nil
 	}
 	logrus.Infof("Starting netmaster on %s", k.node.Name())
-	/*dnsOpt := " --dns-enable=false "
+	dnsOpt := " -d false "
 	if k.node.suite.basicInfo.EnableDNS {
-		dnsOpt = " --dns-enable=true "
-	}*/
+		dnsOpt = " -d true "
+	}
 
-    contNameCmd := fmt.Sprintf("kubectl -n kube-system get pods -o wide | grep netplugin | grep %s | cut -d \" \" -f 1", k.node.Name())
+    contNameCmd := fmt.Sprintf("kubectl -n kube-system get pods -o wide | grep netmaster | grep %s | cut -d \" \" -f 1", k.node.Name())
     containerName, err := k8master.tbnode.RunCommandWithOutput(contNameCmd)
     if err != nil {
         return err
     }
     containerName = strings.TrimSpace(containerName)
 
-    //netmasterStartCmd := "kubectl -n kube-system exec -it " + containerName + " -- " + k.node.suite.basicInfo.BinPath + "/netmaster" + dnsOpt + " --cluster-store " + k.node.suite.basicInfo.ClusterStore + " " + "--cluster-mode kubernetes &> " + netmasterLogLocation
-    netmasterStartCmd := "kubectl -n kube-system exec -it " + containerName + " -- touch " + netmasterRestartFile
+    //    netmasterStartCmd := "kubectl -n kube-system exec -it " + containerName + " -- sh -c '" + k.node.suite.basicInfo.BinPath + "/netmaster" + dnsOpt + " --cluster-store " + k.node.suite.basicInfo.ClusterStore + " " + "--cluster-mode kubernetes > " + netmasterLogLocation + " 2>&1'"
+    netmasterStartCmd := "kubectl -n kube-system exec  " + containerName + " -- /contiv/bin/start_pluginmaster.sh -b " + k.node.suite.basicInfo.BinPath + " -p kubernetes -c " + k.node.suite.basicInfo.ClusterStore + dnsOpt + " -l " + netmasterLogLocation
+    //netmasterStartCmd := "kubectl -n kube-system exec -it " + containerName + " -- touch " + netmasterRestartFile
     logrus.Infof("Starting netmaster on %s with command: %s", k.node.Name(), netmasterStartCmd)
 
-    return k.node.tbnode.RunCommandBackground(netmasterStartCmd)
+    return k8master.tbnode.RunCommandBackground(netmasterStartCmd)
 //	return k.node.tbnode.RunCommandBackground("kubectl -n kube-system exec -it " + containerName + " -- " + k.node.suite.basicInfo.BinPath + "/netmaster" + dnsOpt + " --cluster-store " + k.node.suite.basicInfo.ClusterStore + " " + "--cluster-mode kubernetes &> " + netmasterLogLocation)
 }
 func (k *kubernetes) cleanupMaster() {
@@ -554,8 +547,8 @@ func (k *kubernetes) cleanupSlave() {
     containerName = strings.TrimSpace(containerName)
 
 	vNode := k.node.tbnode
-	vNode.RunCommand("kubectl -n kube-system exec -it " + containerName + " -- ovs-vsctl list-br | grep contiv | xargs -I % ovs-vsctl del-br % > /dev/null 2>&1")
-	vNode.RunCommand("kubectl -n kube-system exec -it " + containerName + " -- for p in `ifconfig  | grep vport | awk '{print $1}'`; do sudo ip link delete $p type veth; done")
+	vNode.RunCommand("kubectl -n kube-system exec -it " + containerName + " -- sh -c 'ovs-vsctl list-br | grep contiv | xargs -I % ovs-vsctl del-br % > /dev/null 2>&1'")
+	vNode.RunCommand("kubectl -n kube-system exec -it " + containerName + " -- sh -c 'for p in `ifconfig  | grep vport | awk '{print $1}'`; do sudo ip link delete $p type veth; done'")
 //	vNode.RunCommand("sudo rm /var/run/docker/plugins/netplugin.sock")
 //	vNode.RunCommand("sudo service docker restart")
 }
@@ -570,7 +563,6 @@ func (k *kubernetes) runCommandUntilNoNetmasterError() error {
         }
         contNameSlice := strings.Split(contNameOut, " ")
         contName := strings.TrimSpace(contNameSlice[0])
-        //containerName = strings.TrimSpace(containerName)
 
         processCheckCmd := fmt.Sprintf("kubectl -n kube-system exec -it %s -- pgrep netmaster", contName)
         logrus.Infof("Process check command: %s", processCheckCmd)
@@ -588,11 +580,10 @@ func (k *kubernetes) runCommandUntilNoNetpluginError() error {
         }
         contNameSlice := strings.Split(contNameOut, " ")
         contName := strings.TrimSpace(contNameSlice[0])
-
         processCheckCmd := fmt.Sprintf("kubectl -n kube-system exec -it %s -- pgrep netplugin", contName)
         logrus.Infof("Process check command: %s", processCheckCmd)
 		return k8master.runCommandUntilNoError(processCheckCmd)
-	}
+    }
 	return nil
 }
 
@@ -615,14 +606,14 @@ func (k *kubernetes) checkForNetpluginErrors() error {
 		return nil
 	}
 
-	out, _ := k.node.tbnode.RunCommandWithOutput(`for i in /tmp/net*; do grep -A 5 "panic\|fatal" $i; done`)
+	out, _ := k.node.tbnode.RunCommandWithOutput(`for i in /var/contiv/log/net*; do grep -A 5 "panic\|fatal" $i; done`)
 	if out != "" {
 		logrus.Errorf("Fatal error in logs on %s: \n", k.node.Name())
 		fmt.Printf("%s\n==========================================\n", out)
 		return fmt.Errorf("fatal error in netplugin logs")
 	}
 
-	out, _ = k.node.tbnode.RunCommandWithOutput(`for i in /tmp/net*; do grep "error" $i; done`)
+	out, _ = k.node.tbnode.RunCommandWithOutput(`for i in /var/contiv/log/net*; do grep "error" $i; done`)
 	if out != "" {
 		logrus.Errorf("error output in netplugin logs on %s: \n", k.node.Name())
 		fmt.Printf("%s==========================================\n\n", out)
@@ -634,9 +625,25 @@ func (k *kubernetes) checkForNetpluginErrors() error {
 }
 
 func (k *kubernetes) rotateLog(prefix string) error {
+    var contNameCmd string
+    if strings.Contains(prefix, "netmaster") {
+        contNameCmd = fmt.Sprintf("kubectl -n kube-system get pods -o wide | grep netmaster | grep %s", k.node.Name())
+    } else {
+        contNameCmd = fmt.Sprintf("kubectl -n kube-system get pods -o wide | grep netplugin | grep %s", k.node.Name())
+    }
+    contNameOut, err := k8master.tbnode.RunCommandWithOutput(contNameCmd)
+    if err != nil {
+        return err
+    }
+    contNameSlice := strings.Split(contNameOut, " ")
+    contName := strings.TrimSpace(contNameSlice[0])
+
 	oldPrefix := fmt.Sprintf("/var/contiv/log/%s", prefix)
 	newPrefix := fmt.Sprintf("/var/contiv/log/_%s", prefix)
-	_, err := k.node.runCommand(fmt.Sprintf("mv %s.log %s-`date +%%s`.log", oldPrefix, newPrefix))
+    rotateLogCmd := fmt.Sprintf("kubectl -n kube-system exec -it %s -- sh -c 'echo `date +%%s` | xargs -I {} mv %s.log %s-{}.log'", contName, oldPrefix, newPrefix)
+    logrus.Infof("Rotating logs using cmd: %+v", rotateLogCmd)
+    out, err := k8master.tbnode.RunCommandWithOutput(rotateLogCmd)
+    logrus.Infof("Output: %+v, Error: %+v", out, err)
 	return err
 }
 

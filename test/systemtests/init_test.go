@@ -92,7 +92,7 @@ func (s *systemtestSuite) SetUpSuite(c *C) {
 		s.SetUpSuiteVagrant(c)
 	}
 
-	s.cli, _ = client.NewContivClient("http://localhost:9999")
+	s.cli, _ = client.NewContivClient("http://192.168.2.10:9999")
 }
 
 func (s *systemtestSuite) SetUpTest(c *C) {
