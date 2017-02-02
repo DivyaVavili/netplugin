@@ -64,6 +64,16 @@ func GetClusterMode() string {
 	return masterRTCfg.clusterMode
 }
 
+// SetListenURL sets the listen URL of the contiv plugin
+func SetListenURL(listenURL uint32) error {
+    masterRTCfg.listenURL = listenURL
+    return nil
+}
+
+// GetListenURL gets the listen URL of the contiv plugin
+func GetListenURL() string {
+	return masterRTCfg.listenURL
+}
 // IsDNSEnabled gets the status of whether DNS is enabled
 func IsDNSEnabled() bool {
 	return masterRTCfg.dnsEnabled

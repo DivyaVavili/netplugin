@@ -69,6 +69,12 @@ func (d *MasterDaemon) Init() {
 		log.Fatalf("Failed to set cluster-mode. Error: %s", err)
 	}
 
+	// save listen url
+	err = master.SetListenURL(d.ListenURL)
+	if err != nil {
+		log.Fatalf("Failed to set listen-url. Error: %s", err)
+	}
+
 	// save dns flag
 	err = master.SetDNSEnabled(d.DNSEnabled)
 	if err != nil {
@@ -106,7 +112,7 @@ func (d *MasterDaemon) registerService() {
 		ServiceName: "netmaster",
 		TTL:         10,
 		HostAddr:    localIP,
-		Port:        9999,
+		Port:        d.ListenURL,
 		Role:        d.currState,
 	}
 
