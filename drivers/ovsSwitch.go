@@ -57,6 +57,13 @@ type OvsSwitch struct {
 	hostPvtNW   int
 }
 
+// UplinkInfo maintains all information for uplink config
+type UplinkInfo struct {
+	Name       string
+	IntfList   []string
+	EnableLacp bool
+}
+
 // getPvtIP returns a private IP for the port
 func (sw *OvsSwitch) getPvtIP(portName string) net.IP {
 	if strings.Contains(portName, "vport") {
@@ -598,7 +605,7 @@ func (sw *OvsSwitch) DeleteVtep(vtepIP string) error {
 	return sw.ovsdbDriver.DeleteVtep(intfName)
 }
 
-func (sw *OvsSwitch) cleanupOldUplinkState(portName string, intfList []string) (bool, error) {
+func (sw *OvsSwitch) cleanupOldUplinkState(uplink UplinkInfo) (bool, error) {
 	var err error
 	var oldUplinkIntf []string
 	portCreateReq := true
@@ -606,18 +613,18 @@ func (sw *OvsSwitch) cleanupOldUplinkState(portName string, intfList []string) (
 	// Check if uplink is already created
 	// Case 1: Bonded ports - port name is the uplinkName
 	// Case 2: Indiviual port - port name is the interface name
-	portPresent := sw.ovsdbDriver.IsPortNamePresent(portName)
+	portPresent := sw.ovsdbDriver.IsPortNamePresent(uplink.Name)
 	if portPresent {
 		/* If port already exists, make sure it has the same member links
 		   If not, a cleanup is required */
-		sort.Strings(intfList)
-		oldUplinkIntf = sw.ovsdbDriver.GetInterfacesInPort(portName)
-		if reflect.DeepEqual(intfList, oldUplinkIntf) {
+		sort.Strings(uplink.IntfList)
+		oldUplinkIntf = sw.ovsdbDriver.GetInterfacesInPort(uplink.Name)
+		if reflect.DeepEqual(uplink.IntfList, oldUplinkIntf) {
 			log.Warnf("Uplink already part of %s", sw.bridgeName)
 			portCreateReq = false
 		} else {
 			log.Warnf("Deleting old uplink bond with intfs: %+v", oldUplinkIntf)
-			err = sw.ovsdbDriver.DeletePortBond(portName, oldUplinkIntf)
+			err = sw.ovsdbDriver.DeletePortBond(uplink.Name, oldUplinkIntf)
 			if err == nil {
 				portCreateReq = true
 			}
@@ -625,14 +632,14 @@ func (sw *OvsSwitch) cleanupOldUplinkState(portName string, intfList []string) (
 		return portCreateReq, err
 	}
 
-	if len(intfList) == 1 && sw.ovsdbDriver.IsPortNamePresent(intfList[0]) {
+	if len(uplink.IntfList) == 1 && sw.ovsdbDriver.IsPortNamePresent(uplink.IntfList[0]) {
 		// Uplink port already part of switch. No change required.
-		log.Debugf("Uplink intf %s already part of %s", intfList[0], sw.bridgeName)
+		log.Debugf("Uplink intf %s already part of %s", uplink.IntfList[0], sw.bridgeName)
 		return false, nil
 	}
 
 	/* Cleanup any other individual ports that may exist */
-	for _, intf := range intfList {
+	for _, intf := range uplink.IntfList {
 		if sw.ovsdbDriver.IsIntfNamePresent(intf) {
 			log.Infof("Deleting old uplink port: %+v", intf)
 			err = sw.ovsdbDriver.DeletePort(intf)
@@ -648,7 +655,7 @@ func (sw *OvsSwitch) cleanupOldUplinkState(portName string, intfList []string) (
 }
 
 // AddUplink adds uplink port(s) to the OVS
-func (sw *OvsSwitch) AddUplink(uplinkName string, intfList []string) error {
+func (sw *OvsSwitch) AddUplink(uplink UplinkInfo) error {
 	var err error
 	var links []*ofnet.LinkInfo
 	var uplinkType string
@@ -658,27 +665,27 @@ func (sw *OvsSwitch) AddUplink(uplinkName string, intfList []string) error {
 		log.Fatalf("Can not add uplink to OVS type %s.", sw.netType)
 	}
 
-	createUplink, err := sw.cleanupOldUplinkState(uplinkName, intfList)
+	createUplink, err := sw.cleanupOldUplinkState(uplink)
 	if err != nil {
 		log.Errorf("Could not cleanup previous uplink state")
 		return err
 	}
 
 	if createUplink {
-		if len(intfList) > 1 {
-			log.Debugf("Creating uplink port bond: %s with intf: %+v", uplinkName, intfList)
-			err = sw.ovsdbDriver.CreatePortBond(intfList, uplinkName)
+		if len(uplink.IntfList) > 1 {
+			log.Debugf("Creating uplink port bond: %+v", uplink)
+			err = sw.ovsdbDriver.CreatePortBond(uplink)
 			if err != nil {
-				log.Errorf("Error adding uplink %s to OVS. Err: %v", intfList, err)
+				log.Errorf("Error adding uplink %s to OVS. Err: %v", uplink.IntfList, err)
 				return err
 			}
 			uplinkType = ofnet.BondType
 		} else {
-			log.Debugf("Creating uplink port: %s", intfList[0])
+			log.Debugf("Creating uplink port: %s", uplink.IntfList[0])
 			// Ask OVSDB driver to add the port as a trunk port
-			err = sw.ovsdbDriver.CreatePort(intfList[0], "", uplinkName, 0, 0, 0)
+			err = sw.ovsdbDriver.CreatePort(uplink.IntfList[0], "", uplink.Name, 0, 0, 0)
 			if err != nil {
-				log.Errorf("Error adding uplink %s to OVS. Err: %v", intfList[0], err)
+				log.Errorf("Error adding uplink %s to OVS. Err: %v", uplink.IntfList[0], err)
 				return err
 			}
 			uplinkType = ofnet.PortType
@@ -693,15 +700,15 @@ func (sw *OvsSwitch) AddUplink(uplinkName string, intfList []string) error {
 	}
 
 	uplinkInfo := ofnet.PortInfo{
-		Name: uplinkName,
+		Name: uplink.Name,
 		Type: uplinkType,
 	}
 
-	for _, intf := range intfList {
+	for _, intf := range uplink.IntfList {
 		// Get the openflow port number for the interface
 		ofpPort, err := sw.ovsdbDriver.GetOfpPortNo(intf)
 		if err != nil {
-			log.Errorf("Could not find the OVS port %s. Err: %v", intfList, err)
+			log.Errorf("Could not find the OVS port %s. Err: %v", uplink.IntfList, err)
 			return err
 		}
 
@@ -721,16 +728,16 @@ func (sw *OvsSwitch) AddUplink(uplinkName string, intfList []string) error {
 		log.Errorf("Error adding uplink %+v. Err: %v", uplinkInfo, err)
 		return err
 	}
-	sw.uplinkDb.Set(uplinkName, intfList)
-	log.Infof("Added uplink %s to OVS switch %s.", intfList, sw.bridgeName)
+	sw.uplinkDb.Set(uplink.Name, uplink.IntfList)
+	log.Infof("Added uplink %s to OVS switch %s.", uplink.IntfList, sw.bridgeName)
 
 	defer func() {
 		if err != nil {
-			sw.uplinkDb.Remove(uplinkName)
+			sw.uplinkDb.Remove(uplink.Name)
 			if uplinkType == ofnet.BondType {
-				sw.ovsdbDriver.DeletePortBond(uplinkName, intfList)
+				sw.ovsdbDriver.DeletePortBond(uplink.Name, uplink.IntfList)
 			} else {
-				sw.ovsdbDriver.DeletePort(intfList[0])
+				sw.ovsdbDriver.DeletePort(uplink.IntfList[0])
 			}
 		}
 	}()

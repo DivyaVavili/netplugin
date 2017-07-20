@@ -142,30 +142,34 @@ func (d *OvsdbDriver) populateCache(updates libovsdb.TableUpdates) {
 func (d *OvsdbDriver) Update(context interface{}, tableUpdates libovsdb.TableUpdates) {
 	d.populateCache(tableUpdates)
 	intfUpds, ok := tableUpdates.Updates["Interface"]
-	if !ok {
-		return
+	if ok {
+		for _, intfUpd := range intfUpds.Rows {
+			intf := intfUpd.New.Fields["name"]
+			oldLacpStatus, ok := intfUpd.Old.Fields["lacp_current"]
+			if !ok {
+				continue
+			}
+			newLacpStatus, ok := intfUpd.New.Fields["lacp_current"]
+			if !ok {
+				continue
+			}
+			if oldLacpStatus == newLacpStatus || d.ovsSwitch == nil {
+				continue
+			}
+
+			linkUpd := ofnet.LinkUpdateInfo{
+				LinkName:   intf.(string),
+				LacpStatus: newLacpStatus.(bool),
+			}
+			log.Debugf("LACP_UPD: Interface: %+v. LACP Status - (Old: %+v, New: %+v)\n", intf, oldLacpStatus, newLacpStatus)
+			d.ovsSwitch.HandleLinkUpdates(linkUpd)
+		}
 	}
-
-	for _, intfUpd := range intfUpds.Rows {
-		intf := intfUpd.New.Fields["name"]
-		oldLacpStatus, ok := intfUpd.Old.Fields["lacp_current"]
-		if !ok {
-			return
+	portUpds, ok := tableUpdates.Updates["Port"]
+	if ok {
+		for _, portUpd := range portUpds.Rows {
+			log.Infof("Divya: Port Update: %+v", portUpd)
 		}
-		newLacpStatus, ok := intfUpd.New.Fields["lacp_current"]
-		if !ok {
-			return
-		}
-		if oldLacpStatus == newLacpStatus || d.ovsSwitch == nil {
-			return
-		}
-
-		linkUpd := ofnet.LinkUpdateInfo{
-			LinkName:   intf.(string),
-			LacpStatus: newLacpStatus.(bool),
-		}
-		log.Debugf("LACP_UPD: Interface: %+v. LACP Status - (Old: %+v, New: %+v)\n", intf, oldLacpStatus, newLacpStatus)
-		d.ovsSwitch.HandleLinkUpdates(linkUpd)
 	}
 }
 
@@ -425,7 +429,7 @@ func (d *OvsdbDriver) GetIntfInfo(uuid libovsdb.UUID) libovsdb.Row {
 }
 
 //CreatePortBond creates port bond in OVS
-func (d *OvsdbDriver) CreatePortBond(intfList []string, bondName string) error {
+func (d *OvsdbDriver) CreatePortBond(uplink UplinkInfo) error {
 
 	var err error
 	var ops []libovsdb.Operation
@@ -433,7 +437,7 @@ func (d *OvsdbDriver) CreatePortBond(intfList []string, bondName string) error {
 	opStr := "insert"
 
 	// Add all the interfaces to the interface table
-	for _, intf := range intfList {
+	for _, intf := range uplink.IntfList {
 		intfUUIDStr := fmt.Sprintf("Intf%s", intf)
 		intfUUID := []libovsdb.UUID{{GoUuid: intfUUIDStr}}
 		intfUUIDList = append(intfUUIDList, intfUUID...)
@@ -456,25 +460,29 @@ func (d *OvsdbDriver) CreatePortBond(intfList []string, bondName string) error {
 	// Insert bond information in Port table
 	portOp := libovsdb.Operation{}
 	port := make(map[string]interface{})
-	port["name"] = bondName
+	port["name"] = uplink.Name
 	port["vlan_mode"] = "trunk"
 	port["interfaces"], err = libovsdb.NewOvsSet(intfUUIDList)
 	if err != nil {
 		return err
 	}
 
-	// Set LACP and Hash properties
-	// "balance-tcp" - balances flows among slaves based on L2, L3, and L4 protocol information such as
-	// destination MAC address, IP address, and TCP port
-	// lacp-fallback-ab:true - Fall back to activ-backup mode when LACP negotiation fails
-	port["bond_mode"] = "balance-tcp"
+	if uplink.EnableLacp {
+		// Set LACP and Hash properties
+		// "balance-tcp" - balances flows among slaves based on L2, L3, and L4 protocol information
+		// such as destination MAC address, IP address, and TCP port
+		// lacp-fallback-ab:true - Fall back to activ-backup mode when LACP negotiation fails
+		port["bond_mode"] = "balance-tcp"
 
-	port["lacp"] = "active"
-	lacpMap := make(map[string]string)
-	lacpMap["lacp-fallback-ab"] = "true"
-	port["other_config"], err = libovsdb.NewOvsMap(lacpMap)
+		port["lacp"] = "active"
+		lacpMap := make(map[string]string)
+		lacpMap["lacp-fallback-ab"] = "true"
+		port["other_config"], err = libovsdb.NewOvsMap(lacpMap)
+	} else {
+		port["bond_mode"] = "active-backup"
+	}
 
-	portUUIDStr := bondName
+	portUUIDStr := uplink.Name
 	portUUID := []libovsdb.UUID{{GoUuid: portUUIDStr}}
 	portOp = libovsdb.Operation{
 		Op:       opStr,

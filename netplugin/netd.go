@@ -73,7 +73,8 @@ type cliOpts struct {
 	jsonLog      bool
 	ctrlIP       string      // IP address to be used by control protocols
 	vtepIP       string      // IP address to be used by the VTEP
-	vlanIntf     StringSlice // Uplink interface for VLAN switching
+	uplinkIntf   StringSlice // Uplink interface for VLAN switching
+	enableLacp   bool        // Mode for bonded uplink interfaces
 	version      bool
 	dbURL        string // state store URL
 	vxlanUDPPort int    // Vxlan UDP port, default: 4789
@@ -149,9 +150,13 @@ func main() {
 		"ctrl-ip",
 		"",
 		"Local ip address to be used for control communication")
-	flagSet.Var(&opts.vlanIntf,
+	flagSet.Var(&opts.uplinkIntf,
 		"vlan-if",
 		"VLAN uplink interface")
+	flagSet.BoolVar(&opts.enableLacp,
+		"enable-lacp",
+		false,
+		"Uplink interface mode")
 	flagSet.BoolVar(&opts.version,
 		"version",
 		false,
@@ -229,7 +234,8 @@ func main() {
 			HostLabel:    opts.hostLabel,
 			CtrlIP:       opts.ctrlIP,
 			VtepIP:       opts.vtepIP,
-			UplinkIntf:   opts.vlanIntf,
+			UplinkIntf:   opts.uplinkIntf,
+			EnableLacp:   opts.enableLacp,
 			DbURL:        opts.dbURL,
 			PluginMode:   opts.pluginMode,
 			VxlanUDPPort: opts.vxlanUDPPort,

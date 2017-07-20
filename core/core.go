@@ -80,6 +80,7 @@ type InstanceInfo struct {
 	CtrlIP       string      `json:"ctrl-ip"`
 	VtepIP       string      `json:"vtep-ip"`
 	UplinkIntf   []string    `json:"uplink-if"`
+	EnableLacp   bool        `json:"enable-lacp"`
 	RouterIP     string      `json:"router-ip"`
 	FwdMode      string      `json:"fwd-mode"`
 	ArpMode      string      `json:"arp-mode"`

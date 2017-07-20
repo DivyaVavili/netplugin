@@ -190,7 +190,14 @@ func (d *OvsDriver) Init(info *core.InstanceInfo) error {
 
 	// Add uplink to VLAN switch
 	if len(info.UplinkIntf) != 0 {
-		err = d.switchDb["vlan"].AddUplink("uplinkPort", info.UplinkIntf)
+		uplinkInfo := UplinkInfo{
+			Name:       "uplinkPort",
+			IntfList:   info.UplinkIntf,
+			EnableLacp: info.EnableLacp,
+		}
+
+		log.Infof("Divya: Adding uplink: %+v", uplinkInfo)
+		err = d.switchDb["vlan"].AddUplink(uplinkInfo)
 		if err != nil {
 			log.Errorf("Could not add uplink %v to vlan OVS. Err: %v", info.UplinkIntf, err)
 		}
